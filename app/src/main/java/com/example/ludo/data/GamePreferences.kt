@@ -1,0 +1,260 @@
+package com.example.ludo.data
+
+import android.content.Context
+import android.content.SharedPreferences
+import com.example.ludo.model.GameState
+import com.example.ludo.model.Player
+import com.example.ludo.model.PlayerColor
+import com.example.ludo.model.Token
+import com.example.ludo.model.TokenState
+import org.json.JSONArray
+import org.json.JSONObject
+
+class GamePreferences(context: Context) {
+    private val prefs: SharedPreferences =
+        context.getSharedPreferences("ludo_game_prefs", Context.MODE_PRIVATE)
+
+    var isSoundEnabled: Boolean
+        get() = prefs.getBoolean(KEY_SOUND, true)
+        set(value) = prefs.edit().putBoolean(KEY_SOUND, value).apply()
+
+    var isMusicEnabled: Boolean
+        get() = prefs.getBoolean(KEY_MUSIC, true)
+        set(value) = prefs.edit().putBoolean(KEY_MUSIC, value).apply()
+
+    var isHapticsEnabled: Boolean
+        get() = prefs.getBoolean(KEY_HAPTICS, true)
+        set(value) = prefs.edit().putBoolean(KEY_HAPTICS, value).apply()
+
+    // Statistics
+    var totalMatches: Int
+        get() = prefs.getInt(KEY_STATS_MATCHES, 0)
+        set(value) = prefs.edit().putInt(KEY_STATS_MATCHES, value).apply()
+
+    var totalWins: Int
+        get() = prefs.getInt(KEY_STATS_WINS, 0)
+        set(value) = prefs.edit().putInt(KEY_STATS_WINS, value).apply()
+
+    var totalCaptures: Int
+        get() = prefs.getInt(KEY_STATS_CAPTURES, 0)
+        set(value) = prefs.edit().putInt(KEY_STATS_CAPTURES, value).apply()
+
+    var totalSixes: Int
+        get() = prefs.getInt(KEY_STATS_SIXES, 0)
+        set(value) = prefs.edit().putInt(KEY_STATS_SIXES, value).apply()
+
+    fun recordMatchFinished(isWinner: Boolean, captures: Int, sixes: Int) {
+        prefs.edit()
+            .putInt(KEY_STATS_MATCHES, totalMatches + 1)
+            .putInt(KEY_STATS_WINS, if (isWinner) totalWins + 1 else totalWins)
+            .putInt(KEY_STATS_CAPTURES, totalCaptures + captures.coerceAtLeast(0))
+            .putInt(KEY_STATS_SIXES, totalSixes + sixes.coerceAtLeast(0))
+            .apply()
+    }
+
+    fun recordCapture() {
+        prefs.edit().putInt(KEY_STATS_CAPTURES, totalCaptures + 1).apply()
+    }
+
+    fun recordSixRolled() {
+        prefs.edit().putInt(KEY_STATS_SIXES, totalSixes + 1).apply()
+    }
+
+    fun resetStatistics() {
+        prefs.edit()
+            .putInt(KEY_STATS_MATCHES, 0)
+            .putInt(KEY_STATS_WINS, 0)
+            .putInt(KEY_STATS_CAPTURES, 0)
+            .putInt(KEY_STATS_SIXES, 0)
+            .apply()
+    }
+
+    fun getPlayerName(slot: Int, default: String): String {
+        return prefs.getString("player_name_$slot", default) ?: default
+    }
+
+    fun setPlayerName(slot: Int, name: String) {
+        prefs.edit().putString("player_name_$slot", name).apply()
+    }
+
+    fun hasSavedGame(): Boolean {
+        return prefs.contains(KEY_SAVED_GAME)
+    }
+
+    fun clearSavedGame() {
+        prefs.edit().remove(KEY_SAVED_GAME).apply()
+    }
+
+    fun saveGame(state: GameState) {
+        if (state.isGameOver) {
+            clearSavedGame()
+            return
+        }
+        try {
+            val root = JSONObject()
+            root.put("currentPlayerIndex", state.currentPlayerIndex)
+            root.put("diceValue", state.diceValue)
+            root.put("turnCount", state.turnCount)
+            root.put("consecutiveSixes", state.consecutiveSixes)
+            root.put("canRollAgain", state.canRollAgain)
+
+            val playersArr = JSONArray()
+            for (p in state.players) {
+                val pObj = JSONObject()
+                pObj.put("id", p.id)
+                pObj.put("name", p.name)
+                pObj.put("color", p.color.name)
+                pObj.put("sixesCount", p.sixesCount)
+                pObj.put("isBot", p.isBot)
+                pObj.put("botDifficulty", p.botDifficulty.name)
+                if (p.rank != null) pObj.put("rank", p.rank)
+
+                val tokensArr = JSONArray()
+                for (t in p.tokens) {
+                    val tObj = JSONObject()
+                    tObj.put("id", t.id)
+                    tObj.put("state", t.state.name)
+                    tObj.put("stepsTraveled", t.stepsTraveled)
+                    tObj.put("homeStep", t.homeStep)
+                    tokensArr.put(tObj)
+                }
+                pObj.put("tokens", tokensArr)
+                playersArr.put(pObj)
+            }
+            root.put("players", playersArr)
+
+            prefs.edit().putString(KEY_SAVED_GAME, root.toString()).apply()
+        } catch (_: Exception) {
+            // Ignore persistence errors
+        }
+    }
+
+    fun loadSavedGame(): GameState? {
+        val jsonStr = prefs.getString(KEY_SAVED_GAME, null) ?: return null
+        return try {
+            val root = JSONObject(jsonStr)
+            val currentPlayerIndex = root.getInt("currentPlayerIndex")
+            val diceValue = root.getInt("diceValue")
+            val turnCount = root.optInt("turnCount", 1)
+            val consecutiveSixes = root.optInt("consecutiveSixes", 0)
+            val canRollAgain = root.optBoolean("canRollAgain", false)
+
+            val playersArr = root.getJSONArray("players")
+            val players = mutableListOf<Player>()
+            for (i in 0 until playersArr.length()) {
+                val pObj = playersArr.getJSONObject(i)
+                val id = pObj.getInt("id")
+                val name = pObj.getString("name")
+                val color = PlayerColor.valueOf(pObj.getString("color"))
+                val sixesCount = pObj.optInt("sixesCount", 0)
+                val capturesCount = pObj.optInt("capturesCount", 0)
+                val rank = if (pObj.has("rank")) pObj.getInt("rank") else null
+
+                val tokensArr = pObj.getJSONArray("tokens")
+                val tokens = mutableListOf<Token>()
+                for (j in 0 until tokensArr.length()) {
+                    val tObj = tokensArr.getJSONObject(j)
+                    val tId = tObj.getInt("id")
+                    val state = TokenState.valueOf(tObj.getString("state"))
+                    val stepsTraveled = tObj.getInt("stepsTraveled")
+                    val homeStep = tObj.getInt("homeStep")
+                    tokens.add(
+                        Token(
+                            id = tId,
+                            color = color,
+                            state = state,
+                            stepsTraveled = stepsTraveled,
+                            homeStep = homeStep
+                        )
+                    )
+                }
+                val isBot = pObj.optBoolean("isBot", false)
+                val botDiffStr = pObj.optString("botDifficulty", "MEDIUM")
+                val botDifficulty = try { com.example.ludo.model.BotDifficulty.valueOf(botDiffStr) } catch (_: Exception) { com.example.ludo.model.BotDifficulty.MEDIUM }
+
+                players.add(
+                    Player(
+                        id = id,
+                        name = name,
+                        color = color,
+                        tokens = tokens,
+                        rank = rank,
+                        sixesCount = sixesCount,
+                        capturesCount = capturesCount,
+                        isBot = isBot,
+                        botDifficulty = botDifficulty
+                    )
+                )
+            }
+
+            GameState(
+                players = players,
+                currentPlayerIndex = currentPlayerIndex,
+                diceValue = diceValue,
+                turnCount = turnCount,
+                consecutiveSixes = consecutiveSixes,
+                canRollAgain = canRollAgain,
+                isWaitingForRoll = true,
+                statusMessage = "${players[currentPlayerIndex].name}'s turn to roll"
+            )
+        } catch (_: Exception) {
+            clearSavedGame()
+            null
+        }
+    }
+
+    data class SavedGameSummary(
+        val playerCount: Int,
+        val turnCount: Int,
+        val currentPlayerName: String,
+        val currentPlayerColor: PlayerColor,
+        val hasBots: Boolean
+    )
+
+    fun getSavedGameSummary(): SavedGameSummary? {
+        val jsonStr = prefs.getString(KEY_SAVED_GAME, null) ?: return null
+        return try {
+            val root = JSONObject(jsonStr)
+            val turnCount = root.optInt("turnCount", 1)
+            val currentPlayerIndex = root.optInt("currentPlayerIndex", 0)
+            val playersArr = root.getJSONArray("players")
+            val pCount = playersArr.length()
+            var currentPName = "Player"
+            var currentColor = PlayerColor.RED
+            var hasBots = false
+
+            for (i in 0 until pCount) {
+                val p = playersArr.getJSONObject(i)
+                if (p.optBoolean("isBot", false)) hasBots = true
+                if (i == currentPlayerIndex) {
+                    currentPName = p.optString("name", "Player")
+                    currentColor = try {
+                        PlayerColor.valueOf(p.optString("color", "RED"))
+                    } catch (_: Exception) {
+                        PlayerColor.RED
+                    }
+                }
+            }
+            SavedGameSummary(
+                playerCount = pCount,
+                turnCount = turnCount,
+                currentPlayerName = currentPName,
+                currentPlayerColor = currentColor,
+                hasBots = hasBots
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    companion object {
+        private const val KEY_SOUND = "key_sound_enabled"
+        private const val KEY_MUSIC = "key_music_enabled"
+        private const val KEY_HAPTICS = "key_haptics_enabled"
+        private const val KEY_SAVED_GAME = "key_saved_game_json"
+        private const val KEY_STATS_MATCHES = "key_stats_matches"
+        private const val KEY_STATS_WINS = "key_stats_wins"
+        private const val KEY_STATS_CAPTURES = "key_stats_captures"
+        private const val KEY_STATS_SIXES = "key_stats_sixes"
+    }
+}

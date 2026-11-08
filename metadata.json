@@ -1,0 +1,6 @@
+{
+  "name": "Ludo Legends",
+  "description": "Premium 3D Ludo board game featuring local multiplayer and intelligent AI bots.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
