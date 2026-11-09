@@ -221,7 +221,7 @@ fun ColorSelectionScreen(
                 }
             }
 
-            Column(modifier = Modifier.padding(bottom = 16.dp)) {
+            Column(modifier = Modifier.padding(bottom = 12.dp)) {
                 GameButton(
                     text = "Start Match",
                     onClick = {
@@ -234,6 +234,15 @@ fun ColorSelectionScreen(
                     style = GameButtonStyle.PRIMARY_GOLD,
                     icon = Icons.Default.PlayArrow,
                     testTag = "start_game_button"
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                com.example.ludo.ads.BannerAdView(
+                    modifier = Modifier.fillMaxWidth(),
+                    placementKey = com.example.ludo.ads.AdConstants.KEY_BANNER_LOBBY,
+                    hasCardContainer = true,
+                    cornerRadius = 14.dp,
+                    containerBackground = Color(0xFF0D1D38),
+                    containerBorderColor = Color(0xFF293B5B)
                 )
             }
         }

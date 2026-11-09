@@ -53,6 +53,9 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.Typography
 
+import androidx.compose.material.icons.outlined.Stars
+import com.example.ludo.ads.BannerAdView
+
 /**
  * Production Victory Screen:
  * - Dynamic confetti celebration
@@ -65,7 +68,9 @@ import com.example.ui.theme.Typography
 fun VictoryScreen(
     gameState: GameState,
     onPlayAgainClick: () -> Unit,
-    onMainMenuClick: () -> Unit
+    onMainMenuClick: () -> Unit,
+    onClaimDoubleReward: (() -> Unit)? = null,
+    isRewardClaimed: Boolean = false
 ) {
     val winner = gameState.winner ?: gameState.players.first()
     val scrollState = rememberScrollState()
@@ -177,7 +182,47 @@ fun VictoryScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Optional Rewarded Ad: Claim 2X Victory Bonus
+                if (onClaimDoubleReward != null) {
+                    if (isRewardClaimed) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(SurfaceElevated)
+                                .border(1.dp, StarGold, RoundedCornerShape(12.dp))
+                                .padding(vertical = 12.dp, horizontal = 16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Stars,
+                                    contentDescription = null,
+                                    tint = StarGold,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "🎉 2X VICTORY REWARDS CLAIMED (+1000 XP & Reroll)",
+                                    style = Typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = StarGold
+                                )
+                            }
+                        }
+                    } else {
+                        GameButton(
+                            text = "Claim 2X Rewards",
+                            subtitle = "Watch a short video to double stars & win XP",
+                            onClick = onClaimDoubleReward,
+                            style = GameButtonStyle.PRIMARY_GOLD,
+                            icon = Icons.Outlined.Stars,
+                            testTag = "claim_double_reward_button"
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
 
                 // Action Buttons
                 Column(
@@ -187,7 +232,7 @@ fun VictoryScreen(
                     GameButton(
                         text = "Play Again",
                         onClick = onPlayAgainClick,
-                        style = GameButtonStyle.PRIMARY_GOLD,
+                        style = GameButtonStyle.SECONDARY_GLASS,
                         icon = Icons.Default.PlayArrow,
                         testTag = "play_again_button"
                     )
@@ -200,6 +245,17 @@ fun VictoryScreen(
                         testTag = "victory_main_menu_button"
                     )
                 }
+
+                BannerAdView(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp, bottom = 12.dp),
+                    placementKey = com.example.ludo.ads.AdConstants.KEY_BANNER_VICTORY,
+                    hasCardContainer = true,
+                    cornerRadius = 14.dp,
+                    containerBackground = Color(0xFF0D1D38),
+                    containerBorderColor = Color(0xFF293B5B)
+                )
             }
         }
     }

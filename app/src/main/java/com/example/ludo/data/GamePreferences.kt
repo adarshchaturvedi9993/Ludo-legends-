@@ -63,6 +63,21 @@ class GamePreferences(context: Context) {
         get() = prefs.getInt(KEY_STATS_SIXES, 0)
         set(value) = prefs.edit().putInt(KEY_STATS_SIXES, value).apply()
 
+    var bonusPoints: Int
+        get() = prefs.getInt(KEY_BONUS_POINTS, 0)
+        set(value) = prefs.edit().putInt(KEY_BONUS_POINTS, value).apply()
+
+    var luckyRerollsCount: Int
+        get() = prefs.getInt(KEY_LUCKY_REROLLS, 0)
+        set(value) = prefs.edit().putInt(KEY_LUCKY_REROLLS, value).apply()
+
+    fun addBonusReward(points: Int = 500) {
+        prefs.edit()
+            .putInt(KEY_BONUS_POINTS, bonusPoints + points)
+            .putInt(KEY_LUCKY_REROLLS, luckyRerollsCount + 1)
+            .apply()
+    }
+
     fun recordMatchFinished(isWinner: Boolean, captures: Int, sixes: Int) {
         prefs.edit()
             .putInt(KEY_STATS_MATCHES, totalMatches + 1)
@@ -281,5 +296,7 @@ class GamePreferences(context: Context) {
         private const val KEY_STATS_WINS = "key_stats_wins"
         private const val KEY_STATS_CAPTURES = "key_stats_captures"
         private const val KEY_STATS_SIXES = "key_stats_sixes"
+        private const val KEY_BONUS_POINTS = "key_bonus_points"
+        private const val KEY_LUCKY_REROLLS = "key_lucky_rerolls"
     }
 }

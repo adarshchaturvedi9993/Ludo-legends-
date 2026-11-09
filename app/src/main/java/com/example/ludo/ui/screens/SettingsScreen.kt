@@ -22,21 +22,26 @@ import androidx.compose.material.icons.outlined.Accessibility
 import androidx.compose.material.icons.outlined.Animation
 import androidx.compose.material.icons.outlined.AutoMode
 import androidx.compose.material.icons.outlined.DeleteSweep
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.HourglassBottom
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Vibration
 import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.outlined.Campaign
+import androidx.compose.material.icons.outlined.VideoLibrary
+import com.example.ludo.ads.BannerAdView
+import com.example.ludo.ads.RemoteConfigManager
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -71,7 +76,8 @@ import com.example.ui.theme.Typography
 fun SettingsScreen(
     gamePreferences: GamePreferences,
     soundManager: SoundManager,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    onWatchSupportAd: (() -> Unit)? = null
 ) {
     var isSoundOn by remember { mutableStateOf(gamePreferences.isSoundEnabled) }
     var isMusicOn by remember { mutableStateOf(gamePreferences.isMusicEnabled) }
@@ -113,7 +119,7 @@ fun SettingsScreen(
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         SettingSwitchRow(
-                            icon = Icons.Outlined.VolumeUp,
+                            icon = Icons.AutoMirrored.Outlined.VolumeUp,
                             title = "Sound Effects",
                             description = "Tactile clacks, roll bounces, and pop sounds",
                             checked = isSoundOn,
@@ -276,6 +282,67 @@ fun SettingsScreen(
                         )
                     }
                 }
+
+                // 5. Ad Network & Remote Config Support
+                val adConfig by RemoteConfigManager.configState.collectAsState()
+                Text(
+                    text = "ADS & REMOTE CONFIG",
+                    style = Typography.labelLarge.copy(letterSpacing = 1.0.sp),
+                    color = AccentPrimary
+                )
+
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Campaign,
+                                contentDescription = null,
+                                tint = AccentPrimary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = if (adConfig.isAdsEnabled) "AdMob Network: Active" else "AdMob Network: Disabled",
+                                    style = Typography.bodyLarge,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = if (adConfig.isLiveMode) "Mode: Live (Production IDs Active)" else "Mode: Test (Google Official Sample IDs)",
+                                    style = Typography.bodyMedium.copy(fontSize = 11.sp),
+                                    color = if (adConfig.isLiveMode) Color(0xFF00E676) else TextMuted
+                                )
+                            }
+                        }
+
+                        if (onWatchSupportAd != null && adConfig.isAdsEnabled) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            GameButton(
+                                text = "Watch Bonus Video (Support Dev)",
+                                subtitle = "+500 XP and 1 Lucky Reroll Perk",
+                                onClick = onWatchSupportAd,
+                                style = GameButtonStyle.SECONDARY_GLASS,
+                                icon = Icons.Outlined.VideoLibrary,
+                                height = 48.dp,
+                                testTag = "watch_support_ad_button"
+                            )
+                        }
+                    }
+                }
+
+                BannerAdView(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp, bottom = 4.dp),
+                    placementKey = com.example.ludo.ads.AdConstants.KEY_BANNER_SETTINGS,
+                    hasCardContainer = true,
+                    cornerRadius = 14.dp,
+                    containerBackground = Color(0xFF0D1D38),
+                    containerBorderColor = Color(0xFF293B5B)
+                )
 
                 AppFooter(modifier = Modifier.padding(top = 8.dp, bottom = 16.dp))
             }

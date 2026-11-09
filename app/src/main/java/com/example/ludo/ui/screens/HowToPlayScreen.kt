@@ -104,6 +104,17 @@ fun HowToPlayScreen(
                     description = "Tap glowing pawns directly on the board to move them. If only one pawn can move legally, it will move automatically for rapid play."
                 )
 
+                com.example.ludo.ads.BannerAdView(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp, bottom = 4.dp),
+                    placementKey = com.example.ludo.ads.AdConstants.KEY_BANNER_LOBBY,
+                    hasCardContainer = true,
+                    cornerRadius = 14.dp,
+                    containerBackground = androidx.compose.ui.graphics.Color(0xFF0D1D38),
+                    containerBorderColor = androidx.compose.ui.graphics.Color(0xFF293B5B)
+                )
+
                 AppFooter(modifier = Modifier.padding(top = 8.dp, bottom = 16.dp))
             }
         }

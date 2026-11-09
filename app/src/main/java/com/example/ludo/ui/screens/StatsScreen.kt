@@ -42,6 +42,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ludo.ads.BannerAdView
 import com.example.ludo.data.GamePreferences
 import com.example.ludo.ui.components.AppFooter
 import com.example.ludo.ui.components.GameBackground
@@ -226,6 +227,17 @@ fun StatsScreen(
                     style = GameButtonStyle.SECONDARY_GLASS,
                     icon = Icons.Outlined.DeleteOutline,
                     testTag = "reset_stats_button"
+                )
+
+                BannerAdView(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp, bottom = 4.dp),
+                    placementKey = com.example.ludo.ads.AdConstants.KEY_BANNER_LOBBY,
+                    hasCardContainer = true,
+                    cornerRadius = 14.dp,
+                    containerBackground = Color(0xFF0D1D38),
+                    containerBorderColor = Color(0xFF293B5B)
                 )
 
                 AppFooter(modifier = Modifier.padding(top = 8.dp, bottom = 16.dp))

@@ -1,5 +1,6 @@
 package com.example
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -18,6 +20,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import com.example.ludo.ads.LudoAds
 import com.example.ludo.audio.SoundManager
 import com.example.ludo.data.GamePreferences
 import com.example.ludo.model.GameState
@@ -129,6 +133,17 @@ fun LudoAppContent(
     var selectedPlayerCount by rememberSaveable { mutableIntStateOf(4) }
     var activeGameState by remember { mutableStateOf<GameState?>(null) }
     var hasSavedMatch by remember { mutableStateOf(gamePreferences.hasSavedGame()) }
+    var isDoubleRewardClaimed by rememberSaveable { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val activity = context as? Activity
+
+    LaunchedEffect(currentScreen) {
+        LudoAds.setGameActive(currentScreen == Screen.GAME)
+        if (currentScreen != Screen.VICTORY) {
+            isDoubleRewardClaimed = false
+        }
+    }
 
     when (currentScreen) {
         Screen.SPLASH -> {
@@ -172,6 +187,17 @@ fun LudoAppContent(
                 onSettingsClick = {
                     soundManager.playButtonTap()
                     currentScreen = Screen.SETTINGS
+                },
+                onWatchRewardAd = {
+                    activity?.let { act ->
+                        LudoAds.showRewardedAd(
+                            activity = act,
+                            onRewardEarned = {
+                                gamePreferences.addBonusReward(500)
+                            },
+                            onAdClosed = {}
+                        )
+                    }
                 }
             )
         }
@@ -310,11 +336,23 @@ fun LudoAppContent(
                     gamePreferences.recordMatchFinished(isHumanWinner, totalCaptures, totalSixes)
                     gamePreferences.clearSavedGame()
                     hasSavedMatch = false
-                    currentScreen = Screen.VICTORY
+                    if (activity != null && com.example.ludo.ads.RemoteConfigManager.isInterstitialMatchEndEnabled()) {
+                        LudoAds.showInterstitial(activity) {
+                            currentScreen = Screen.VICTORY
+                        }
+                    } else {
+                        currentScreen = Screen.VICTORY
+                    }
                 },
                 onExitToMenu = {
                     soundManager.playButtonTap()
-                    currentScreen = Screen.HOME
+                    if (activity != null && com.example.ludo.ads.RemoteConfigManager.isInterstitialExitEnabled()) {
+                        LudoAds.showInterstitial(activity) {
+                            currentScreen = Screen.HOME
+                        }
+                    } else {
+                        currentScreen = Screen.HOME
+                    }
                 },
                 onRestartGame = {
                     soundManager.playButtonTap()
@@ -353,6 +391,19 @@ fun LudoAppContent(
 
             VictoryScreen(
                 gameState = state,
+                isRewardClaimed = isDoubleRewardClaimed,
+                onClaimDoubleReward = {
+                    if (activity != null && com.example.ludo.ads.RemoteConfigManager.isRewardedVictoryDoubleEnabled()) {
+                        LudoAds.showRewardedInterstitialAd(
+                            activity = activity,
+                            onRewardEarned = {
+                                gamePreferences.addBonusReward(1000)
+                                isDoubleRewardClaimed = true
+                            },
+                            onAdClosed = {}
+                        )
+                    }
+                },
                 onPlayAgainClick = {
                     soundManager.playButtonTap()
                     val resetPlayers = state.players.map { p ->
@@ -378,7 +429,13 @@ fun LudoAppContent(
                 },
                 onMainMenuClick = {
                     soundManager.playButtonTap()
-                    currentScreen = Screen.HOME
+                    if (activity != null) {
+                        LudoAds.showInterstitial(activity) {
+                            currentScreen = Screen.HOME
+                        }
+                    } else {
+                        currentScreen = Screen.HOME
+                    }
                 }
             )
         }
@@ -395,6 +452,17 @@ fun LudoAppContent(
                 onBackClick = {
                     soundManager.playButtonTap()
                     currentScreen = Screen.HOME
+                },
+                onWatchSupportAd = {
+                    activity?.let { act ->
+                        LudoAds.showRewardedAd(
+                            activity = act,
+                            onRewardEarned = {
+                                gamePreferences.addBonusReward(500)
+                            },
+                            onAdClosed = {}
+                        )
+                    }
                 }
             )
         }

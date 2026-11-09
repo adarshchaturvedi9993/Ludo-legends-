@@ -23,12 +23,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.EmojiEvents
-import androidx.compose.material.icons.outlined.HelpOutline
-import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
@@ -50,6 +50,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ludo.ads.BannerAdView
+import com.example.ludo.ads.NativeAdCard
+import androidx.compose.material.icons.outlined.Stars
+import androidx.compose.material.icons.outlined.VideoLibrary
 import com.example.R
 import com.example.ludo.data.GamePreferences
 import com.example.ludo.ui.components.AppFooter
@@ -87,7 +91,8 @@ fun HomeScreen(
     onResumeMatchClick: () -> Unit,
     onRulesClick: () -> Unit,
     onStatsClick: () -> Unit = onRulesClick,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onWatchRewardAd: (() -> Unit)? = null
 ) {
     val scrollState = rememberScrollState()
     val savedSummary = remember(hasSavedGame) {
@@ -172,7 +177,7 @@ fun HomeScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Outlined.HelpOutline,
+                                imageVector = Icons.AutoMirrored.Outlined.HelpOutline,
                                 contentDescription = "Rules",
                                 tint = Color.White,
                                 modifier = Modifier.size(20.dp)
@@ -271,7 +276,7 @@ fun HomeScreen(
 
                     CompactUtilityCard(
                         modifier = Modifier.weight(1f),
-                        icon = Icons.Outlined.MenuBook,
+                        icon = Icons.AutoMirrored.Outlined.MenuBook,
                         title = "Quick\nRules",
                         testTag = "home_rules_card",
                         onClick = onRulesClick
@@ -294,8 +299,100 @@ fun HomeScreen(
                     )
                 }
 
-                // 6. Bottom Footer with Rights & Credits
-                AppFooter(modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
+                // 6. Native Advanced Ad
+                NativeAdCard(modifier = Modifier.fillMaxWidth())
+
+                // 7. Rewarded Video Ad Bonus Card
+                if (onWatchRewardAd != null && com.example.ludo.ads.RemoteConfigManager.isRewardedRerollEnabled()) {
+                    val currentPoints = gamePreferences?.bonusPoints ?: 0
+                    val currentRerolls = gamePreferences?.luckyRerollsCount ?: 0
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(SurfacePanel)
+                            .border(1.dp, GoldHighlight.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(StarGold.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Stars,
+                                    contentDescription = null,
+                                    tint = StarGold,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "FREE BONUS PERK",
+                                    style = Typography.labelMedium.copy(
+                                        letterSpacing = 0.8.sp,
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    color = StarGold
+                                )
+                                Text(
+                                    text = "Watch short video for +500 XP & 1 Reroll ($currentPoints XP, $currentRerolls Rerolls)",
+                                    style = Typography.labelSmall.copy(fontSize = 11.sp),
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(AccentPrimary)
+                                .clickable { onWatchRewardAd() }
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Outlined.VideoLibrary,
+                                    contentDescription = null,
+                                    tint = Color(0xFF080F22),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Watch",
+                                    style = Typography.labelLarge.copy(fontSize = 12.sp),
+                                    color = Color(0xFF080F22)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 8. Stretched Bottom Banner Ad with rounded corners matching cards
+                BannerAdView(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp, bottom = 4.dp),
+                    placementKey = com.example.ludo.ads.AdConstants.KEY_BANNER_HOME,
+                    hasCardContainer = true,
+                    cornerRadius = 14.dp,
+                    containerBackground = Color(0xFF0D1D38),
+                    containerBorderColor = Color(0xFF293B5B)
+                )
+
+                // 9. Bottom Footer with Rights & Credits
+                AppFooter(modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
                 Spacer(modifier = Modifier.height(4.dp))
             }
         }

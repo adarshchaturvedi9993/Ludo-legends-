@@ -18,11 +18,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SmartToy
-import androidx.compose.material.icons.filled.VolumeOff
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.MusicOff
@@ -50,6 +50,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ludo.ads.AdConstants
+import com.example.ludo.ads.BannerAdView
 import com.example.ludo.ai.LudoBotAI
 import com.example.ludo.audio.SoundManager
 import com.example.ludo.data.GamePreferences
@@ -371,7 +373,7 @@ fun GameScreen(
                             .testTag("sound_toggle_button")
                     ) {
                         Icon(
-                            imageVector = if (isSoundMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                            imageVector = if (isSoundMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
                             contentDescription = "Toggle Sound",
                             tint = if (isSoundMuted) TextMuted else Color.White,
                             modifier = Modifier.size(20.dp)
@@ -439,115 +441,17 @@ fun GameScreen(
                     }
                 )
 
-                // 5. Dominant Bottom Turn & Dice Action Bar
-                val canRollCurrent = gameState.isWaitingForRoll && !gameState.isDiceRolling && !currentPlayer.isBot && !isHopAnimating
-                val actionTitle = "${currentPlayer.name.uppercase()}'S TURN"
-                val actionSubtitle = when {
-                    gameState.isGameOver -> "${gameState.winner?.name ?: currentPlayer.name} WON!"
-                    gameState.isDiceRolling -> "ROLLING THE DICE..."
-                    isHopAnimating -> "MOVING PAWN..."
-                    gameState.isWaitingForRoll && currentPlayer.isBot -> "AI THINKING..."
-                    gameState.isWaitingForRoll -> "ROLL THE DICE!"
-                    gameState.movableTokenIds.isEmpty() -> "NO VALID MOVES (ROLLED ${gameState.diceValue})"
-                    gameState.movableTokenIds.size > 1 -> "TAP A GLOWING PAWN"
-                    gameState.diceValue == 6 -> "ROLLED 6! EXTRA TURN!"
-                    else -> "ROLLED ${gameState.diceValue} • MOVING..."
-                }
-
-                Box(
+                // 5. Natural Bottom Banner Ad (Seamlessly replaces redundant bottom card)
+                BannerAdView(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .clip(RoundedCornerShape(26.dp))
-                        .background(Color(0xFF080F22))
-                        .border(
-                            width = 2.dp,
-                            brush = Brush.horizontalGradient(GoldRimGradientColors),
-                            shape = RoundedCornerShape(26.dp)
-                        )
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = if (canRollCurrent) ripple(bounded = true, color = AccentPrimary) else null,
-                            enabled = canRollCurrent,
-                            onClick = {
-                                handleRoll(
-                                    currentState = gameState,
-                                    soundManager = soundManager,
-                                    coroutineScope = coroutineScope,
-                                    onStateUpdated = onStateUpdated,
-                                    onRollStarted = { rolled -> playerLastDiceValue[currentPlayer.id] = rolled }
-                                )
-                            }
-                        )
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .testTag("roll_dice_bottom_bar"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(50.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    Brush.radialGradient(
-                                        listOf(
-                                            AccentPrimary.copy(alpha = 0.35f),
-                                            Color.Transparent
-                                        )
-                                    )
-                                )
-                                .border(1.5.dp, AccentPrimary.copy(alpha = 0.6f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Realistic3DDiceView(
-                                value = if (gameState.diceValue in 1..6) gameState.diceValue else (playerLastDiceValue[currentPlayer.id] ?: 1),
-                                isRolling = gameState.isDiceRolling,
-                                enabled = canRollCurrent,
-                                size = 42.dp,
-                                accentColor = currentPlayer.color.primaryColor,
-                                onBounce = { soundManager.playDiceRoll() },
-                                onRollClick = {
-                                    if (canRollCurrent) {
-                                        handleRoll(
-                                            currentState = gameState,
-                                            soundManager = soundManager,
-                                            coroutineScope = coroutineScope,
-                                            onStateUpdated = onStateUpdated,
-                                            onRollStarted = { rolled -> playerLastDiceValue[currentPlayer.id] = rolled }
-                                        )
-                                    }
-                                }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(16.dp))
-
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = actionTitle,
-                                style = Typography.labelLarge.copy(fontSize = 13.sp, letterSpacing = 1.0.sp),
-                                color = TextSecondary
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = actionSubtitle,
-                                style = Typography.titleLarge.copy(
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 0.5.sp
-                                ),
-                                color = if (gameState.isWaitingForRoll) AccentPrimary else GoldHighlight
-                            )
-                        }
-                    }
-                }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    placementKey = AdConstants.KEY_BANNER_GAME,
+                    hasCardContainer = true,
+                    cornerRadius = 20.dp,
+                    containerBackground = Color(0xFF080F22),
+                    containerBorderColor = Color(0xFF293B5B)
+                )
             }
 
             // Universal Pause Dialog using GameDialog
@@ -620,7 +524,7 @@ fun GameScreen(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = if (isSoundMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                                imageVector = if (isSoundMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
                                 contentDescription = null,
                                 tint = if (isSoundMuted) TextMuted else TextPrimary,
                                 modifier = Modifier.size(16.dp)
