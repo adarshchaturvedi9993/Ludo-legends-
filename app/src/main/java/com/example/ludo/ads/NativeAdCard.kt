@@ -40,11 +40,12 @@ import com.google.android.gms.ads.nativead.NativeAdView
  */
 @Composable
 fun NativeAdCard(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    placementKey: String = AdConstants.KEY_NATIVE_HOME
 ) {
     val configState by RemoteConfigManager.configState.collectAsState()
 
-    if (!configState.isAdsEnabled || !RemoteConfigManager.isNativeHomeEnabled()) {
+    if (!configState.isAdsEnabled || !RemoteConfigManager.isPlacementEnabled(placementKey)) {
         return
     }
 
@@ -56,15 +57,28 @@ fun NativeAdCard(
     }
 
     DisposableEffect(adUnitId) {
+        AdDiagnosticsTracker.recordLoading("Native Advanced", adUnitId)
+        Log.d("NativeAdCard", "[AdMob Request] Native Advanced -> AdUnitId: $adUnitId")
+
         val adLoader = AdLoader.Builder(context, adUnitId)
             .forNativeAd { ad ->
                 loadedNativeAd?.destroy()
                 loadedNativeAd = ad
-                Log.d("NativeAdCard", "Native Ad loaded successfully: ${ad.headline}")
+                val responseSummary = ad.responseInfo?.toString() ?: ""
+                Log.d("NativeAdCard", "[AdMob Loaded] Native Advanced -> Success! Headline: ${ad.headline}")
+                AdDiagnosticsTracker.recordLoaded("Native Advanced", adUnitId, responseSummary)
             }
             .withAdListener(object : AdListener() {
                 override fun onAdFailedToLoad(error: LoadAdError) {
-                    Log.w("NativeAdCard", "Native Ad failed to load: ${error.message}")
+                    Log.w("NativeAdCard", "[AdMob Failed] Native Advanced -> Code: ${error.code}, Domain: ${error.domain}, Message: ${error.message}")
+                    AdDiagnosticsTracker.recordFailed(
+                        format = "Native Advanced",
+                        unitId = adUnitId,
+                        code = error.code,
+                        domain = error.domain,
+                        message = error.message,
+                        responseInfoSummary = error.responseInfo?.toString() ?: ""
+                    )
                 }
             })
             .withNativeAdOptions(
@@ -82,23 +96,28 @@ fun NativeAdCard(
         }
     }
 
-    val nativeAd = loadedNativeAd ?: return
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .wrapContentHeight()
-            .padding(vertical = 4.dp)
+    androidx.compose.animation.AnimatedVisibility(
+        visible = loadedNativeAd != null,
+        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically()
     ) {
-        AndroidView(
-            modifier = Modifier.fillMaxWidth(),
-            factory = { ctx ->
-                createNativeAdView(ctx, nativeAd)
-            },
-            update = { view ->
-                populateNativeAdView(nativeAd, view)
-            }
-        )
+        val nativeAd = loadedNativeAd ?: return@AnimatedVisibility
+
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .wrapContentHeight()
+                .padding(vertical = 4.dp)
+        ) {
+            AndroidView(
+                modifier = Modifier.fillMaxWidth(),
+                factory = { ctx ->
+                    createNativeAdView(ctx, nativeAd)
+                },
+                update = { view ->
+                    populateNativeAdView(nativeAd, view)
+                }
+            )
+        }
     }
 }
 

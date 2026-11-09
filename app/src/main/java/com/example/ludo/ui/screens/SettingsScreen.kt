@@ -77,7 +77,8 @@ fun SettingsScreen(
     gamePreferences: GamePreferences,
     soundManager: SoundManager,
     onBackClick: () -> Unit,
-    onWatchSupportAd: (() -> Unit)? = null
+    onWatchSupportAd: (() -> Unit)? = null,
+    onDiagnosticsClick: (() -> Unit)? = null
 ) {
     var isSoundOn by remember { mutableStateOf(gamePreferences.isSoundEnabled) }
     var isMusicOn by remember { mutableStateOf(gamePreferences.isMusicEnabled) }
@@ -328,6 +329,19 @@ fun SettingsScreen(
                                 icon = Icons.Outlined.VideoLibrary,
                                 height = 48.dp,
                                 testTag = "watch_support_ad_button"
+                            )
+                        }
+
+                        if (onDiagnosticsClick != null) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            GameButton(
+                                text = "Open Ad Diagnostics Monitor",
+                                subtitle = "Live status & test buttons for all 6 ad formats",
+                                onClick = onDiagnosticsClick,
+                                style = GameButtonStyle.SECONDARY_GLASS,
+                                icon = Icons.Outlined.Visibility,
+                                height = 48.dp,
+                                testTag = "open_ad_diagnostics_button"
                             )
                         }
                     }

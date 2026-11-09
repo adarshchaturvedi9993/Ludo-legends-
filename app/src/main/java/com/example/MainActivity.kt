@@ -50,7 +50,8 @@ enum class Screen {
     VICTORY,
     SETTINGS,
     STATS,
-    HOW_TO_PLAY
+    HOW_TO_PLAY,
+    AD_DIAGNOSTICS
 }
 
 class MainActivity : ComponentActivity() {
@@ -68,17 +69,6 @@ class MainActivity : ComponentActivity() {
         soundManager.isMusicEnabled = gamePreferences.isMusicEnabled
         soundManager.isHapticsEnabled = gamePreferences.isHapticsEnabled
         soundManager.startBackgroundMusic()
-
-        try {
-            com.google.firebase.FirebaseApp.initializeApp(this)
-            com.google.firebase.analytics.FirebaseAnalytics.getInstance(this)
-        } catch (_: Exception) {
-        }
-
-        try {
-            com.google.android.gms.ads.MobileAds.initialize(this) {}
-        } catch (_: Exception) {
-        }
 
         setContent {
             LudoTheme {
@@ -150,6 +140,9 @@ fun LudoAppContent(
             SplashScreen(
                 onSplashFinished = {
                     currentScreen = Screen.HOME
+                    if (activity != null && com.example.ludo.ads.RemoteConfigManager.isAppOpenEnabled()) {
+                        LudoAds.appOpenAdManager.showAdIfAvailable(activity)
+                    }
                 }
             )
         }
@@ -375,6 +368,17 @@ fun LudoAppContent(
                     activeGameState = resetState
                     gamePreferences.saveGame(resetState)
                     hasSavedMatch = true
+                },
+                onWatchRewardAd = {
+                    activity?.let { act ->
+                        LudoAds.showRewardedAd(
+                            activity = act,
+                            onRewardEarned = {
+                                gamePreferences.addBonusReward(500)
+                            },
+                            onAdClosed = {}
+                        )
+                    }
                 }
             )
         }
@@ -463,6 +467,10 @@ fun LudoAppContent(
                             onAdClosed = {}
                         )
                     }
+                },
+                onDiagnosticsClick = {
+                    soundManager.playButtonTap()
+                    currentScreen = Screen.AD_DIAGNOSTICS
                 }
             )
         }
@@ -478,6 +486,17 @@ fun LudoAppContent(
                 onBackClick = {
                     soundManager.playButtonTap()
                     currentScreen = Screen.HOME
+                },
+                onWatchRewardAd = {
+                    activity?.let { act ->
+                        LudoAds.showRewardedAd(
+                            activity = act,
+                            onRewardEarned = {
+                                gamePreferences.addBonusReward(500)
+                            },
+                            onAdClosed = {}
+                        )
+                    }
                 }
             )
         }
@@ -492,6 +511,20 @@ fun LudoAppContent(
                 onBackClick = {
                     soundManager.playButtonTap()
                     currentScreen = Screen.HOME
+                }
+            )
+        }
+
+        Screen.AD_DIAGNOSTICS -> {
+            BackHandler {
+                soundManager.playButtonTap()
+                currentScreen = Screen.SETTINGS
+            }
+
+            com.example.ludo.ui.screens.AdDiagnosticsScreen(
+                onBackClick = {
+                    soundManager.playButtonTap()
+                    currentScreen = Screen.SETTINGS
                 }
             )
         }

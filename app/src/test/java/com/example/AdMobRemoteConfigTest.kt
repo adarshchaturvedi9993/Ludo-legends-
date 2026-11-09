@@ -60,6 +60,11 @@ class AdMobRemoteConfigTest {
         assertEquals("rewarded_reroll_enabled", AdConstants.KEY_REWARDED_REROLL)
         assertEquals("rewarded_victory_double_enabled", AdConstants.KEY_REWARDED_VICTORY_DOUBLE)
         assertEquals("app_open_enabled", AdConstants.KEY_APP_OPEN_ENABLED)
+        assertEquals("banner_stats_enabled", AdConstants.KEY_BANNER_STATS)
+        assertEquals("banner_how_to_play_enabled", AdConstants.KEY_BANNER_HOW_TO_PLAY)
+        assertEquals("native_stats_enabled", AdConstants.KEY_NATIVE_STATS)
+        assertEquals("cooldown_fullscreen_seconds", AdConstants.KEY_COOLDOWN_FULLSCREEN_SECONDS)
+        assertEquals("cooldown_app_open_seconds", AdConstants.KEY_COOLDOWN_APP_OPEN_SECONDS)
         assertEquals("test", AdConstants.MODE_TEST)
         assertEquals("live", AdConstants.MODE_LIVE)
     }

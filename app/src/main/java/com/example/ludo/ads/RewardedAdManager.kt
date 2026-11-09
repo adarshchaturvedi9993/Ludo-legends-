@@ -2,6 +2,8 @@ package com.example.ludo.ads
 
 import android.app.Activity
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdRequest
@@ -20,13 +22,15 @@ class RewardedAdManager(private val context: Context) {
 
     private var rewardedAd: RewardedAd? = null
     private var isLoading = false
+    private var retryCount = 0
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     val isLoaded: Boolean
         get() = rewardedAd != null
 
     fun loadAd(onLoaded: (() -> Unit)? = null) {
         if (isLoading || rewardedAd != null) {
-            onLoaded?.invoke()
+            if (rewardedAd != null) onLoaded?.invoke()
             return
         }
 
@@ -36,9 +40,10 @@ class RewardedAdManager(private val context: Context) {
 
         isLoading = true
         val adUnitId = RemoteConfigManager.getRewardedAdUnitId()
+        AdDiagnosticsTracker.recordLoading("Rewarded", adUnitId)
         val request = AdRequest.Builder().build()
 
-        Log.d(TAG, "Loading Rewarded Ad with unit ID: $adUnitId (LiveMode=${RemoteConfigManager.isLiveMode()})")
+        Log.d(TAG, "[AdMob Request] Rewarded -> AdUnitId: $adUnitId (LiveMode=${RemoteConfigManager.isLiveMode()})")
 
         RewardedAd.load(
             context,
@@ -48,14 +53,36 @@ class RewardedAdManager(private val context: Context) {
                 override fun onAdLoaded(ad: RewardedAd) {
                     rewardedAd = ad
                     isLoading = false
-                    Log.d(TAG, "Rewarded Ad loaded successfully.")
+                    retryCount = 0
+                    val responseSummary = ad.responseInfo.toString()
+                    Log.d(TAG, "[AdMob Loaded] Rewarded -> Success! Response: $responseSummary")
+                    AdDiagnosticsTracker.recordLoaded("Rewarded", adUnitId, responseSummary)
                     onLoaded?.invoke()
                 }
 
                 override fun onAdFailedToLoad(loadAdError: LoadAdError) {
                     rewardedAd = null
                     isLoading = false
-                    Log.w(TAG, "Rewarded Ad failed to load: ${loadAdError.message}")
+                    Log.w(
+                        TAG,
+                        "[AdMob Failed] Rewarded -> Code: ${loadAdError.code}, Domain: ${loadAdError.domain}, Message: ${loadAdError.message}"
+                    )
+                    AdDiagnosticsTracker.recordFailed(
+                        format = "Rewarded",
+                        unitId = adUnitId,
+                        code = loadAdError.code,
+                        domain = loadAdError.domain,
+                        message = loadAdError.message,
+                        responseInfoSummary = loadAdError.responseInfo?.toString() ?: ""
+                    )
+
+                    // Retry backoff
+                    if (retryCount < 3) {
+                        val delayMs = (5000L * (1 shl retryCount)).coerceAtMost(30000L)
+                        retryCount++
+                        Log.d(TAG, "Scheduling Rewarded retry #$retryCount in ${delayMs / 1000}s")
+                        mainHandler.postDelayed({ loadAd() }, delayMs)
+                    }
                 }
             }
         )
@@ -73,7 +100,7 @@ class RewardedAdManager(private val context: Context) {
     ) {
         val ad = rewardedAd
         if (ad == null) {
-            Log.d(TAG, "Rewarded ad is not ready yet.")
+            Log.d(TAG, "Rewarded ad is not ready yet. Preloading and continuing.")
             loadAd()
             onAdClosed(false)
             return
@@ -84,26 +111,36 @@ class RewardedAdManager(private val context: Context) {
         ad.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() {
                 rewardedAd = null
-                Log.d(TAG, "Rewarded ad dismissed. Reward earned: $rewardGranted")
+                Log.d(TAG, "[AdMob Event] Rewarded ad dismissed. Reward earned: $rewardGranted")
+                AdDiagnosticsTracker.recordDismissed("Rewarded")
                 loadAd()
                 onAdClosed(rewardGranted)
             }
 
             override fun onAdFailedToShowFullScreenContent(adError: AdError) {
                 rewardedAd = null
-                Log.w(TAG, "Rewarded ad failed to show: ${adError.message}")
+                Log.w(TAG, "[AdMob Error] Rewarded ad failed to show: ${adError.message}")
+                AdDiagnosticsTracker.recordFailed(
+                    format = "Rewarded",
+                    unitId = RemoteConfigManager.getRewardedAdUnitId(),
+                    code = adError.code,
+                    domain = adError.domain,
+                    message = adError.message
+                )
                 loadAd()
                 onAdClosed(false)
             }
 
             override fun onAdShowedFullScreenContent() {
-                Log.d(TAG, "Rewarded ad showed.")
+                Log.d(TAG, "[AdMob Event] Rewarded ad showed.")
+                AdDiagnosticsTracker.recordShowing("Rewarded")
             }
         }
 
         ad.show(activity) { rewardItem ->
+            // CRITICAL: Reward is strictly granted ONLY through Google's verified callback
             rewardGranted = true
-            Log.d(TAG, "User earned verified reward: ${rewardItem.type} amount ${rewardItem.amount}")
+            Log.d(TAG, "[AdMob Reward] User earned verified reward: ${rewardItem.type} amount ${rewardItem.amount}")
             onRewardEarned(rewardItem)
         }
     }

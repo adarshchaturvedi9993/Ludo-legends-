@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.example.BuildConfig
 import com.example.R
+import com.google.firebase.FirebaseApp
 import com.google.firebase.remoteconfig.ConfigUpdate
 import com.google.firebase.remoteconfig.ConfigUpdateListener
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
@@ -33,39 +34,76 @@ object RemoteConfigManager {
             return
         }
 
+        // 1. Ensure FirebaseApp is safely initialized (handles missing google-services.json gracefully)
+        val firebaseAvailable = try {
+            val apps = FirebaseApp.getApps(context)
+            if (apps.isEmpty()) {
+                val app = FirebaseApp.initializeApp(context)
+                app != null
+            } else {
+                true
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "FirebaseApp initialization failed (safe fallback active): ${e.message}")
+            false
+        }
+
+        AdDiagnosticsTracker.updateFirebaseStatus(
+            initialized = firebaseAvailable,
+            isLive = false,
+            mode = AdConstants.MODE_TEST
+        )
+
+        // 2. Setup in-memory defaults with Google's official Test Ad Unit IDs
+        val defaultValues = mapOf<String, Any>(
+            AdConstants.KEY_ADS_ENABLED to true,
+            AdConstants.KEY_ADS_MODE to AdConstants.MODE_TEST,
+            AdConstants.KEY_AD_UNIT_APP_OPEN to AdConstants.TEST_APP_OPEN,
+            AdConstants.KEY_AD_UNIT_BANNER to AdConstants.TEST_BANNER,
+            AdConstants.KEY_AD_UNIT_INTERSTITIAL to AdConstants.TEST_INTERSTITIAL,
+            AdConstants.KEY_AD_UNIT_REWARDED_INTERSTITIAL to AdConstants.TEST_REWARDED_INTERSTITIAL,
+            AdConstants.KEY_AD_UNIT_REWARDED to AdConstants.TEST_REWARDED,
+            AdConstants.KEY_AD_UNIT_NATIVE to AdConstants.TEST_NATIVE,
+            AdConstants.KEY_BANNER_HOME to true,
+            AdConstants.KEY_BANNER_GAME to true,
+            AdConstants.KEY_BANNER_LOBBY to true,
+            AdConstants.KEY_BANNER_VICTORY to true,
+            AdConstants.KEY_BANNER_SETTINGS to true,
+            AdConstants.KEY_NATIVE_HOME to true,
+            AdConstants.KEY_INTERSTITIAL_MATCH_END to true,
+            AdConstants.KEY_INTERSTITIAL_EXIT to true,
+            AdConstants.KEY_REWARDED_REROLL to true,
+            AdConstants.KEY_REWARDED_VICTORY_DOUBLE to true,
+            AdConstants.KEY_APP_OPEN_ENABLED to true,
+            AdConstants.KEY_BANNER_STATS to true,
+            AdConstants.KEY_BANNER_HOW_TO_PLAY to true,
+            AdConstants.KEY_NATIVE_STATS to true,
+            AdConstants.KEY_COOLDOWN_FULLSCREEN_SECONDS to 45L,
+            AdConstants.KEY_COOLDOWN_APP_OPEN_SECONDS to 60L
+        )
+
+        if (!firebaseAvailable) {
+            Log.i(TAG, "Firebase unavailable; applying hardcoded Test Mode defaults directly.")
+            _configState.value = AdConfigState(
+                isAdsEnabled = true,
+                isLiveMode = false,
+                adsMode = AdConstants.MODE_TEST
+            )
+            isInitialized = true
+            onReady?.invoke()
+            return
+        }
+
         try {
             val remoteConfig = FirebaseRemoteConfig.getInstance()
 
             val fetchInterval = if (BuildConfig.DEBUG) 0L else 3600L
             val configSettings = FirebaseRemoteConfigSettings.Builder()
                 .setMinimumFetchIntervalInSeconds(fetchInterval)
-                .setFetchTimeoutInSeconds(15L)
+                .setFetchTimeoutInSeconds(10L)
                 .build()
 
             remoteConfig.setConfigSettingsAsync(configSettings)
-
-            // Safe in-memory defaults
-            val defaultValues = mapOf<String, Any>(
-                AdConstants.KEY_ADS_ENABLED to true,
-                AdConstants.KEY_ADS_MODE to AdConstants.MODE_TEST,
-                AdConstants.KEY_AD_UNIT_APP_OPEN to AdConstants.PROD_APP_OPEN,
-                AdConstants.KEY_AD_UNIT_BANNER to AdConstants.PROD_BANNER,
-                AdConstants.KEY_AD_UNIT_INTERSTITIAL to AdConstants.PROD_INTERSTITIAL,
-                AdConstants.KEY_AD_UNIT_REWARDED_INTERSTITIAL to AdConstants.PROD_REWARDED_INTERSTITIAL,
-                AdConstants.KEY_AD_UNIT_REWARDED to AdConstants.PROD_REWARDED,
-                AdConstants.KEY_AD_UNIT_NATIVE to AdConstants.PROD_NATIVE,
-                AdConstants.KEY_BANNER_HOME to true,
-                AdConstants.KEY_BANNER_GAME to true,
-                AdConstants.KEY_BANNER_LOBBY to true,
-                AdConstants.KEY_BANNER_VICTORY to true,
-                AdConstants.KEY_BANNER_SETTINGS to true,
-                AdConstants.KEY_NATIVE_HOME to true,
-                AdConstants.KEY_INTERSTITIAL_MATCH_END to true,
-                AdConstants.KEY_INTERSTITIAL_EXIT to true,
-                AdConstants.KEY_REWARDED_REROLL to true,
-                AdConstants.KEY_REWARDED_VICTORY_DOUBLE to true,
-                AdConstants.KEY_APP_OPEN_ENABLED to true
-            )
 
             try {
                 remoteConfig.setDefaultsAsync(R.xml.remote_config_defaults)
@@ -81,7 +119,7 @@ object RemoteConfigManager {
                     if (task.isSuccessful) {
                         Log.d(TAG, "Remote config fetched & activated. Live=${isLiveMode()}")
                     } else {
-                        Log.w(TAG, "Remote config fetch failed; using cached/defaults", task.exception)
+                        Log.w(TAG, "Remote config fetch failed; using test defaults: ${task.exception?.message}")
                     }
                     updateCurrentState(remoteConfig)
                     onReady?.invoke()
@@ -90,7 +128,7 @@ object RemoteConfigManager {
             // Real-time listener for dynamic Remote Config changes from Firebase Console
             remoteConfig.addOnConfigUpdateListener(object : ConfigUpdateListener {
                 override fun onUpdate(configUpdate: ConfigUpdate) {
-                    Log.d(TAG, "Updated keys: " + configUpdate.updatedKeys)
+                    Log.d(TAG, "Updated Remote Config keys: " + configUpdate.updatedKeys)
                     remoteConfig.activate().addOnCompleteListener {
                         updateCurrentState(remoteConfig)
                     }
@@ -103,7 +141,13 @@ object RemoteConfigManager {
 
             isInitialized = true
         } catch (e: Exception) {
-            Log.e(TAG, "Error initializing RemoteConfigManager", e)
+            Log.e(TAG, "Error initializing FirebaseRemoteConfig, falling back to local defaults", e)
+            _configState.value = AdConfigState(
+                isAdsEnabled = true,
+                isLiveMode = false,
+                adsMode = AdConstants.MODE_TEST
+            )
+            isInitialized = true
             onReady?.invoke()
         }
     }
@@ -118,11 +162,14 @@ object RemoteConfigManager {
             isLiveMode = isLive,
             adsMode = mode
         )
+
+        AdDiagnosticsTracker.updateFirebaseStatus(
+            initialized = true,
+            isLive = isLive,
+            mode = mode
+        )
     }
 
-    /**
-     * Master switch for advertisements.
-     */
     fun isAdsEnabled(): Boolean {
         return try {
             FirebaseRemoteConfig.getInstance().getBoolean(AdConstants.KEY_ADS_ENABLED)
@@ -131,9 +178,6 @@ object RemoteConfigManager {
         }
     }
 
-    /**
-     * Returns true ONLY if ads are enabled and ads_mode is set to "live".
-     */
     fun isLiveMode(): Boolean {
         return try {
             val remoteConfig = FirebaseRemoteConfig.getInstance()
@@ -145,99 +189,66 @@ object RemoteConfigManager {
         }
     }
 
-    /**
-     * App Open Ad Unit ID.
-     * In test mode, strictly returns Google's official test ID.
-     * In live mode, returns the production ID from Remote Config or fallback.
-     */
     fun getAppOpenAdUnitId(): String {
         if (!isLiveMode()) return AdConstants.TEST_APP_OPEN
         return try {
             val id = FirebaseRemoteConfig.getInstance().getString(AdConstants.KEY_AD_UNIT_APP_OPEN).trim()
-            if (id.isNotEmpty()) id else AdConstants.PROD_APP_OPEN
+            if (id.isNotEmpty() && !id.contains("3940256099942544")) id else AdConstants.PROD_APP_OPEN
         } catch (_: Exception) {
             AdConstants.PROD_APP_OPEN
         }
     }
 
-    /**
-     * Banner Ad Unit ID.
-     * In test mode, strictly returns Google's official test ID.
-     * In live mode, returns the production ID from Remote Config or fallback.
-     */
     fun getBannerAdUnitId(): String {
         if (!isLiveMode()) return AdConstants.TEST_BANNER
         return try {
             val id = FirebaseRemoteConfig.getInstance().getString(AdConstants.KEY_AD_UNIT_BANNER).trim()
-            if (id.isNotEmpty()) id else AdConstants.PROD_BANNER
+            if (id.isNotEmpty() && !id.contains("3940256099942544")) id else AdConstants.PROD_BANNER
         } catch (_: Exception) {
             AdConstants.PROD_BANNER
         }
     }
 
-    /**
-     * Interstitial Ad Unit ID.
-     * In test mode, strictly returns Google's official test ID.
-     * In live mode, returns the production ID from Remote Config or fallback.
-     */
     fun getInterstitialAdUnitId(): String {
         if (!isLiveMode()) return AdConstants.TEST_INTERSTITIAL
         return try {
             val id = FirebaseRemoteConfig.getInstance().getString(AdConstants.KEY_AD_UNIT_INTERSTITIAL).trim()
-            if (id.isNotEmpty()) id else AdConstants.PROD_INTERSTITIAL
+            if (id.isNotEmpty() && !id.contains("3940256099942544")) id else AdConstants.PROD_INTERSTITIAL
         } catch (_: Exception) {
             AdConstants.PROD_INTERSTITIAL
         }
     }
 
-    /**
-     * Rewarded Interstitial Ad Unit ID.
-     * In test mode, strictly returns Google's official test ID.
-     * In live mode, returns the production ID from Remote Config or fallback.
-     */
     fun getRewardedInterstitialAdUnitId(): String {
         if (!isLiveMode()) return AdConstants.TEST_REWARDED_INTERSTITIAL
         return try {
             val id = FirebaseRemoteConfig.getInstance().getString(AdConstants.KEY_AD_UNIT_REWARDED_INTERSTITIAL).trim()
-            if (id.isNotEmpty()) id else AdConstants.PROD_REWARDED_INTERSTITIAL
+            if (id.isNotEmpty() && !id.contains("3940256099942544")) id else AdConstants.PROD_REWARDED_INTERSTITIAL
         } catch (_: Exception) {
             AdConstants.PROD_REWARDED_INTERSTITIAL
         }
     }
 
-    /**
-     * Rewarded Ad Unit ID.
-     * In test mode, strictly returns Google's official test ID.
-     * In live mode, returns the production ID from Remote Config or fallback.
-     */
     fun getRewardedAdUnitId(): String {
         if (!isLiveMode()) return AdConstants.TEST_REWARDED
         return try {
             val id = FirebaseRemoteConfig.getInstance().getString(AdConstants.KEY_AD_UNIT_REWARDED).trim()
-            if (id.isNotEmpty()) id else AdConstants.PROD_REWARDED
+            if (id.isNotEmpty() && !id.contains("3940256099942544")) id else AdConstants.PROD_REWARDED
         } catch (_: Exception) {
             AdConstants.PROD_REWARDED
         }
     }
 
-    /**
-     * Native Advanced Ad Unit ID.
-     * In test mode, strictly returns Google's official test ID.
-     * In live mode, returns the production ID from Remote Config or fallback.
-     */
     fun getNativeAdUnitId(): String {
         if (!isLiveMode()) return AdConstants.TEST_NATIVE
         return try {
             val id = FirebaseRemoteConfig.getInstance().getString(AdConstants.KEY_AD_UNIT_NATIVE).trim()
-            if (id.isNotEmpty()) id else AdConstants.PROD_NATIVE
+            if (id.isNotEmpty() && !id.contains("3940256099942544")) id else AdConstants.PROD_NATIVE
         } catch (_: Exception) {
             AdConstants.PROD_NATIVE
         }
     }
 
-    /**
-     * Checks if a specific ad placement is enabled.
-     */
     fun isPlacementEnabled(key: String): Boolean {
         if (!isAdsEnabled()) return false
         return try {
@@ -258,4 +269,25 @@ object RemoteConfigManager {
     fun isRewardedRerollEnabled(): Boolean = isPlacementEnabled(AdConstants.KEY_REWARDED_REROLL)
     fun isRewardedVictoryDoubleEnabled(): Boolean = isPlacementEnabled(AdConstants.KEY_REWARDED_VICTORY_DOUBLE)
     fun isAppOpenEnabled(): Boolean = isPlacementEnabled(AdConstants.KEY_APP_OPEN_ENABLED)
+    fun isBannerStatsEnabled(): Boolean = isPlacementEnabled(AdConstants.KEY_BANNER_STATS)
+    fun isBannerHowToPlayEnabled(): Boolean = isPlacementEnabled(AdConstants.KEY_BANNER_HOW_TO_PLAY)
+    fun isNativeStatsEnabled(): Boolean = isPlacementEnabled(AdConstants.KEY_NATIVE_STATS)
+
+    fun getFullscreenCooldownSeconds(): Long {
+        return try {
+            val cooldown = FirebaseRemoteConfig.getInstance().getLong(AdConstants.KEY_COOLDOWN_FULLSCREEN_SECONDS)
+            if (cooldown > 0) cooldown else 45L
+        } catch (_: Exception) {
+            45L
+        }
+    }
+
+    fun getAppOpenCooldownSeconds(): Long {
+        return try {
+            val cooldown = FirebaseRemoteConfig.getInstance().getLong(AdConstants.KEY_COOLDOWN_APP_OPEN_SECONDS)
+            if (cooldown > 0) cooldown else 60L
+        } catch (_: Exception) {
+            60L
+        }
+    }
 }

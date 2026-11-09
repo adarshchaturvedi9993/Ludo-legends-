@@ -10,27 +10,27 @@
     </entry>
     <entry>
         <key>ad_unit_app_open</key>
-        <value>ca-app-pub-3093045675277628/9087363896</value>
+        <value>ca-app-pub-3940256099942544/9257395921</value>
     </entry>
     <entry>
         <key>ad_unit_banner</key>
-        <value>ca-app-pub-3093045675277628/3283151685</value>
+        <value>ca-app-pub-3940256099942544/6300978111</value>
     </entry>
     <entry>
         <key>ad_unit_interstitial</key>
-        <value>ca-app-pub-3093045675277628/6322433902</value>
+        <value>ca-app-pub-3940256099942544/1033173712</value>
     </entry>
     <entry>
         <key>ad_unit_rewarded_interstitial</key>
-        <value>ca-app-pub-3093045675277628/3638374905</value>
+        <value>ca-app-pub-3940256099942544/5354046379</value>
     </entry>
     <entry>
         <key>ad_unit_rewarded</key>
-        <value>ca-app-pub-3093045675277628/1666817686</value>
+        <value>ca-app-pub-3940256099942544/5224354917</value>
     </entry>
     <entry>
         <key>ad_unit_native</key>
-        <value>ca-app-pub-3093045675277628/1485040199</value>
+        <value>ca-app-pub-3940256099942544/2247696110</value>
     </entry>
     <entry>
         <key>banner_home_enabled</key>
@@ -75,5 +75,25 @@
     <entry>
         <key>app_open_enabled</key>
         <value>true</value>
+    </entry>
+    <entry>
+        <key>banner_stats_enabled</key>
+        <value>true</value>
+    </entry>
+    <entry>
+        <key>banner_how_to_play_enabled</key>
+        <value>true</value>
+    </entry>
+    <entry>
+        <key>native_stats_enabled</key>
+        <value>true</value>
+    </entry>
+    <entry>
+        <key>cooldown_fullscreen_seconds</key>
+        <value>45</value>
+    </entry>
+    <entry>
+        <key>cooldown_app_open_seconds</key>
+        <value>60</value>
     </entry>
 </defaultsMap>

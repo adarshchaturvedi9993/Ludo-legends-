@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -34,8 +33,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.example.ui.theme.BorderHairline
-import com.example.ui.theme.SurfacePanel
 import com.example.ui.theme.TextMuted
 import com.google.android.gms.ads.AdListener
 import com.google.android.gms.ads.AdRequest
@@ -46,7 +43,7 @@ import com.google.android.gms.ads.LoadAdError
 /**
  * Premium Adaptive Banner Ad Composable.
  * Stretches naturally to match card layouts with rounded corners and subtle styling.
- * Respects Firebase Remote Config placement keys and avoids layout jumps.
+ * Respects Firebase Remote Config placement keys, logs detailed diagnostics, and prevents layout jumps.
  */
 @Composable
 fun BannerAdView(
@@ -92,18 +89,31 @@ fun BannerAdView(
         var isAdLoaded by remember { mutableStateOf(false) }
 
         val adView = remember(adUnitId, adaptiveSize) {
+            AdDiagnosticsTracker.recordLoading("Banner", adUnitId)
+            Log.d("BannerAdView", "[AdMob Request] Banner -> UnitId: $adUnitId (${adaptiveSize.width}x${adaptiveSize.height})")
+
             AdView(context).apply {
                 setAdSize(adaptiveSize)
                 this.adUnitId = adUnitId
                 adListener = object : AdListener() {
                     override fun onAdLoaded() {
                         isAdLoaded = true
-                        Log.d("BannerAdView", "Banner Ad loaded: $adUnitId (${adaptiveSize.width}x${adaptiveSize.height})")
+                        val responseSummary = responseInfo?.toString() ?: ""
+                        Log.d("BannerAdView", "[AdMob Loaded] Banner -> Success! $adUnitId (${adaptiveSize.width}x${adaptiveSize.height})")
+                        AdDiagnosticsTracker.recordLoaded("Banner", adUnitId, responseSummary)
                     }
 
                     override fun onAdFailedToLoad(error: LoadAdError) {
                         isAdLoaded = false
-                        Log.w("BannerAdView", "Banner Ad failed: ${error.message} (code ${error.code})")
+                        Log.w("BannerAdView", "[AdMob Failed] Banner -> Code: ${error.code}, Domain: ${error.domain}, Message: ${error.message}")
+                        AdDiagnosticsTracker.recordFailed(
+                            format = "Banner",
+                            unitId = adUnitId,
+                            code = error.code,
+                            domain = error.domain,
+                            message = error.message,
+                            responseInfoSummary = error.responseInfo?.toString() ?: ""
+                        )
                     }
                 }
                 loadAd(AdRequest.Builder().build())
@@ -126,45 +136,50 @@ fun BannerAdView(
             }
         }
 
-        val containerShape = RoundedCornerShape(cornerRadius)
+        androidx.compose.animation.AnimatedVisibility(
+            visible = isAdLoaded,
+            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically()
+        ) {
+            val containerShape = RoundedCornerShape(cornerRadius)
 
-        if (hasCardContainer) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(containerShape)
-                    .background(containerBackground)
-                    .border(1.dp, containerBorderColor, containerShape)
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
+            if (hasCardContainer) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(containerShape)
+                        .background(containerBackground)
+                        .border(1.dp, containerBorderColor, containerShape)
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    // Discreet attribution label
-                    Text(
-                        text = "SPONSORED",
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.8.sp,
-                        color = TextMuted.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Discreet attribution label
+                        Text(
+                            text = "SPONSORED",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.8.sp,
+                            color = TextMuted.copy(alpha = 0.7f),
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
 
-                    AndroidView(
-                        factory = { adView },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 50.dp)
-                    )
+                        AndroidView(
+                            factory = { adView },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 50.dp)
+                        )
+                    }
                 }
+            } else {
+                AndroidView(
+                    factory = { adView },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
-        } else {
-            AndroidView(
-                factory = { adView },
-                modifier = Modifier.fillMaxWidth()
-            )
         }
     }
 }

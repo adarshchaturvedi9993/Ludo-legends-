@@ -2,6 +2,8 @@ package com.example.ludo.ads
 
 import android.app.Activity
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdRequest
@@ -12,16 +14,23 @@ import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import java.util.Date
 
 /**
- * Manages loading and showing of Interstitial Ads with natural placement and cooldowns.
+ * Manages loading and showing of Interstitial Ads with natural placement,
+ * cooldowns, retry backoff, and diagnostics tracking.
  */
 class InterstitialAdManager(private val context: Context) {
 
     private var interstitialAd: InterstitialAd? = null
     private var isLoading = false
     private var lastShownTime: Long = 0
+    private var retryCount = 0
+    private val mainHandler = Handler(Looper.getMainLooper())
 
-    fun loadAd() {
+    val isLoaded: Boolean
+        get() = interstitialAd != null
+
+    fun loadAd(onLoaded: (() -> Unit)? = null) {
         if (isLoading || interstitialAd != null) {
+            if (interstitialAd != null) onLoaded?.invoke()
             return
         }
 
@@ -31,9 +40,10 @@ class InterstitialAdManager(private val context: Context) {
 
         isLoading = true
         val adUnitId = RemoteConfigManager.getInterstitialAdUnitId()
+        AdDiagnosticsTracker.recordLoading("Interstitial", adUnitId)
         val request = AdRequest.Builder().build()
 
-        Log.d(TAG, "Loading Interstitial Ad with unit ID: $adUnitId (LiveMode=${RemoteConfigManager.isLiveMode()})")
+        Log.d(TAG, "[AdMob Request] Interstitial -> AdUnitId: $adUnitId (LiveMode=${RemoteConfigManager.isLiveMode()})")
 
         InterstitialAd.load(
             context,
@@ -43,13 +53,36 @@ class InterstitialAdManager(private val context: Context) {
                 override fun onAdLoaded(ad: InterstitialAd) {
                     interstitialAd = ad
                     isLoading = false
-                    Log.d(TAG, "Interstitial Ad loaded.")
+                    retryCount = 0
+                    val responseSummary = ad.responseInfo.toString()
+                    Log.d(TAG, "[AdMob Loaded] Interstitial -> Success! Response: $responseSummary")
+                    AdDiagnosticsTracker.recordLoaded("Interstitial", adUnitId, responseSummary)
+                    onLoaded?.invoke()
                 }
 
                 override fun onAdFailedToLoad(loadAdError: LoadAdError) {
                     interstitialAd = null
                     isLoading = false
-                    Log.w(TAG, "Interstitial Ad failed to load: ${loadAdError.message}")
+                    Log.w(
+                        TAG,
+                        "[AdMob Failed] Interstitial -> Code: ${loadAdError.code}, Domain: ${loadAdError.domain}, Message: ${loadAdError.message}"
+                    )
+                    AdDiagnosticsTracker.recordFailed(
+                        format = "Interstitial",
+                        unitId = adUnitId,
+                        code = loadAdError.code,
+                        domain = loadAdError.domain,
+                        message = loadAdError.message,
+                        responseInfoSummary = loadAdError.responseInfo?.toString() ?: ""
+                    )
+
+                    // Retry backoff
+                    if (retryCount < 3) {
+                        val delayMs = (5000L * (1 shl retryCount)).coerceAtMost(30000L)
+                        retryCount++
+                        Log.d(TAG, "Scheduling Interstitial retry #$retryCount in ${delayMs / 1000}s")
+                        mainHandler.postDelayed({ loadAd() }, delayMs)
+                    }
                 }
             }
         )
@@ -71,16 +104,16 @@ class InterstitialAdManager(private val context: Context) {
 
         val now = Date().time
         val timeSinceLast = now - lastShownTime
-        // 45 seconds cooldown between interstitials unless forceShow
-        if (!forceShow && timeSinceLast < 45_000) {
-            Log.d(TAG, "Skipping interstitial due to cooldown (${timeSinceLast / 1000}s < 45s)")
+        val cooldownMs = RemoteConfigManager.getFullscreenCooldownSeconds() * 1000L
+        if (!forceShow && timeSinceLast < cooldownMs) {
+            Log.d(TAG, "Skipping interstitial due to cooldown (${timeSinceLast / 1000}s < ${cooldownMs / 1000}s)")
             onAdClosed()
             return
         }
 
         val ad = interstitialAd
         if (ad == null) {
-            Log.d(TAG, "Interstitial ad not ready; proceeding directly.")
+            Log.d(TAG, "Interstitial ad not ready; loading in background and proceeding.")
             loadAd()
             onAdClosed()
             return
@@ -90,20 +123,29 @@ class InterstitialAdManager(private val context: Context) {
             override fun onAdDismissedFullScreenContent() {
                 interstitialAd = null
                 lastShownTime = Date().time
-                Log.d(TAG, "Interstitial ad dismissed.")
+                Log.d(TAG, "[AdMob Event] Interstitial ad dismissed.")
+                AdDiagnosticsTracker.recordDismissed("Interstitial")
                 loadAd()
                 onAdClosed()
             }
 
             override fun onAdFailedToShowFullScreenContent(adError: AdError) {
                 interstitialAd = null
-                Log.w(TAG, "Interstitial ad failed to show: ${adError.message}")
+                Log.w(TAG, "[AdMob Error] Interstitial ad failed to show: ${adError.message}")
+                AdDiagnosticsTracker.recordFailed(
+                    format = "Interstitial",
+                    unitId = RemoteConfigManager.getInterstitialAdUnitId(),
+                    code = adError.code,
+                    domain = adError.domain,
+                    message = adError.message
+                )
                 loadAd()
                 onAdClosed()
             }
 
             override fun onAdShowedFullScreenContent() {
-                Log.d(TAG, "Interstitial ad showed full screen content.")
+                Log.d(TAG, "[AdMob Event] Interstitial ad showed full screen content.")
+                AdDiagnosticsTracker.recordShowing("Interstitial")
             }
         }
 

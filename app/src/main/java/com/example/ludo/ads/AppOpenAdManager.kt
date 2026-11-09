@@ -3,6 +3,8 @@ package com.example.ludo.ads
 import android.app.Activity
 import android.app.Application
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -16,7 +18,8 @@ import java.util.Date
 
 /**
  * Manages App Open Ad lifecycle and loading.
- * Ensures ads are only shown when app is foregrounded and not in active gameplay.
+ * Ensures ads are only shown when app is foregrounded and not in active gameplay,
+ * with retry backoff and detailed diagnostics.
  */
 class AppOpenAdManager(private val application: Application) :
     Application.ActivityLifecycleCallbacks, DefaultLifecycleObserver {
@@ -28,6 +31,8 @@ class AppOpenAdManager(private val application: Application) :
 
     private var loadTime: Long = 0
     private var lastAdDismissedTime: Long = 0
+    private var retryCount = 0
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private var currentActivity: Activity? = null
 
@@ -42,8 +47,11 @@ class AppOpenAdManager(private val application: Application) :
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
     }
 
-    fun loadAd() {
+    fun isAdLoaded(): Boolean = isAdAvailable()
+
+    fun loadAd(onLoaded: (() -> Unit)? = null) {
         if (isLoadingAd || isAdAvailable()) {
+            if (isAdAvailable()) onLoaded?.invoke()
             return
         }
 
@@ -54,9 +62,10 @@ class AppOpenAdManager(private val application: Application) :
 
         isLoadingAd = true
         val adUnitId = RemoteConfigManager.getAppOpenAdUnitId()
+        AdDiagnosticsTracker.recordLoading("App Open", adUnitId)
         val request = AdRequest.Builder().build()
 
-        Log.d(TAG, "Loading App Open Ad with unit ID: $adUnitId (LiveMode=${RemoteConfigManager.isLiveMode()})")
+        Log.d(TAG, "[AdMob Request] App Open -> AdUnitId: $adUnitId (LiveMode=${RemoteConfigManager.isLiveMode()})")
 
         AppOpenAd.load(
             application,
@@ -66,14 +75,37 @@ class AppOpenAdManager(private val application: Application) :
                 override fun onAdLoaded(ad: AppOpenAd) {
                     appOpenAd = ad
                     isLoadingAd = false
+                    retryCount = 0
                     loadTime = Date().time
-                    Log.d(TAG, "App Open Ad loaded successfully.")
+                    val responseSummary = ad.responseInfo.toString()
+                    Log.d(TAG, "[AdMob Loaded] App Open -> Success! Response: $responseSummary")
+                    AdDiagnosticsTracker.recordLoaded("App Open", adUnitId, responseSummary)
+                    onLoaded?.invoke()
                 }
 
                 override fun onAdFailedToLoad(loadAdError: LoadAdError) {
                     isLoadingAd = false
                     appOpenAd = null
-                    Log.w(TAG, "App Open Ad failed to load: ${loadAdError.message}")
+                    Log.w(
+                        TAG,
+                        "[AdMob Failed] App Open -> Code: ${loadAdError.code}, Domain: ${loadAdError.domain}, Message: ${loadAdError.message}"
+                    )
+                    AdDiagnosticsTracker.recordFailed(
+                        format = "App Open",
+                        unitId = adUnitId,
+                        code = loadAdError.code,
+                        domain = loadAdError.domain,
+                        message = loadAdError.message,
+                        responseInfoSummary = loadAdError.responseInfo?.toString() ?: ""
+                    )
+
+                    // Exponential retry backoff: 5s, 10s, 20s (max 3 retries)
+                    if (retryCount < 3) {
+                        val delayMs = (5000L * (1 shl retryCount)).coerceAtMost(30000L)
+                        retryCount++
+                        Log.d(TAG, "Scheduling App Open retry #$retryCount in ${delayMs / 1000}s")
+                        mainHandler.postDelayed({ loadAd() }, delayMs)
+                    }
                 }
             }
         )
@@ -85,7 +117,11 @@ class AppOpenAdManager(private val application: Application) :
         return appOpenAd != null && isNotExpired
     }
 
-    fun showAdIfAvailable(activity: Activity, onAdDismissed: (() -> Unit)? = null) {
+    fun showAdIfAvailable(
+        activity: Activity,
+        forceShow: Boolean = false,
+        onAdDismissed: (() -> Unit)? = null
+    ) {
         if (isShowingAd) {
             Log.d(TAG, "An ad is already showing.")
             onAdDismissed?.invoke()
@@ -98,33 +134,40 @@ class AppOpenAdManager(private val application: Application) :
             return
         }
 
-        if (isGameActive) {
+        if (isGameActive && !forceShow) {
             Log.d(TAG, "User is playing a match; skipping App Open Ad to preserve gameplay.")
             onAdDismissed?.invoke()
             return
         }
 
-        // 60-second cooldown between app open ads to prevent spam
-        val now = Date().time
-        if (now - lastAdDismissedTime < 60_000) {
-            Log.d(TAG, "App Open Ad skipped due to cooldown.")
+        val cooldownSeconds = RemoteConfigManager.getAppOpenCooldownSeconds()
+        if (!forceShow && !LudoAds.canShowFullScreenAd(cooldownSeconds)) {
+            Log.d(TAG, "App Open Ad skipped due to global full-screen cooldown (${cooldownSeconds}s).")
             onAdDismissed?.invoke()
             return
         }
 
         if (!isAdAvailable()) {
-            Log.d(TAG, "App Open Ad is not ready yet.")
+            Log.d(TAG, "App Open Ad is not ready yet. Triggering reload.")
             loadAd()
             onAdDismissed?.invoke()
             return
         }
 
-        appOpenAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
+        val ad = appOpenAd
+        if (ad == null) {
+            onAdDismissed?.invoke()
+            return
+        }
+
+        ad.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() {
                 appOpenAd = null
                 isShowingAd = false
                 lastAdDismissedTime = Date().time
-                Log.d(TAG, "App Open Ad dismissed.")
+                LudoAds.recordFullScreenAdDismissed(false)
+                AdDiagnosticsTracker.recordDismissed("App Open")
+                Log.d(TAG, "[AdMob Event] App Open Ad dismissed.")
                 loadAd()
                 onAdDismissed?.invoke()
             }
@@ -132,19 +175,28 @@ class AppOpenAdManager(private val application: Application) :
             override fun onAdFailedToShowFullScreenContent(adError: AdError) {
                 appOpenAd = null
                 isShowingAd = false
-                Log.w(TAG, "App Open Ad failed to show: ${adError.message}")
+                LudoAds.recordFullScreenAdDismissed(false)
+                AdDiagnosticsTracker.recordFailed(
+                    format = "App Open",
+                    unitId = RemoteConfigManager.getAppOpenAdUnitId(),
+                    code = adError.code,
+                    domain = adError.domain,
+                    message = adError.message
+                )
+                Log.w(TAG, "[AdMob Error] App Open Ad failed to show: ${adError.message}")
                 loadAd()
                 onAdDismissed?.invoke()
             }
 
             override fun onAdShowedFullScreenContent() {
                 isShowingAd = true
-                Log.d(TAG, "App Open Ad displayed.")
+                AdDiagnosticsTracker.recordShowing("App Open")
+                Log.d(TAG, "[AdMob Event] App Open Ad displayed.")
             }
         }
 
         isShowingAd = true
-        appOpenAd?.show(activity)
+        ad.show(activity)
     }
 
     // ProcessLifecycleObserver callbacks

@@ -40,6 +40,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -56,7 +59,6 @@ import androidx.compose.material.icons.outlined.Stars
 import androidx.compose.material.icons.outlined.VideoLibrary
 import com.example.R
 import com.example.ludo.data.GamePreferences
-import com.example.ludo.ui.components.AppFooter
 import com.example.ludo.ui.components.GameBackground
 import com.example.ludo.ui.components.GameButton
 import com.example.ludo.ui.components.GameButtonStyle
@@ -66,6 +68,7 @@ import com.example.ui.theme.BorderHairline
 import com.example.ui.theme.GoldHighlight
 import com.example.ui.theme.GoldRimGradientColors
 import com.example.ui.theme.StarGold
+import com.example.ui.theme.SurfaceBackground
 import com.example.ui.theme.SurfaceElevated
 import com.example.ui.theme.SurfacePanel
 import com.example.ui.theme.TextMuted
@@ -204,12 +207,11 @@ fun HomeScreen(
                     }
                 }
 
-                // 2. Hero Section: 3D Artwork card
+                // 2. Hero Section: Seamlessly merged 3D Artwork
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .border(1.5.dp, BorderHairline, RoundedCornerShape(16.dp)),
+                        .padding(horizontal = 4.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
@@ -217,7 +219,60 @@ fun HomeScreen(
                         contentDescription = "Ludo Legends Banner",
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp)),
+                            .drawWithContent {
+                                drawContent()
+
+                                val w = size.width
+                                val h = size.height
+
+                                // 1. Bottom edge smooth gradient blend into navy background
+                                val bottomFadeHeight = 44.dp.toPx()
+                                drawRect(
+                                    brush = Brush.verticalGradient(
+                                        colors = listOf(
+                                            Color.Transparent,
+                                            SurfaceBackground.copy(alpha = 0.5f),
+                                            SurfaceBackground.copy(alpha = 0.95f),
+                                            SurfaceBackground
+                                        ),
+                                        startY = (h - bottomFadeHeight).coerceAtLeast(0f),
+                                        endY = h
+                                    ),
+                                    topLeft = Offset(0f, (h - bottomFadeHeight).coerceAtLeast(0f)),
+                                    size = Size(w, bottomFadeHeight)
+                                )
+
+                                // 2. Left edge subtle feathering
+                                val sideFadeWidth = 18.dp.toPx()
+                                drawRect(
+                                    brush = Brush.horizontalGradient(
+                                        colors = listOf(
+                                            SurfaceBackground.copy(alpha = 0.85f),
+                                            SurfaceBackground.copy(alpha = 0.35f),
+                                            Color.Transparent
+                                        ),
+                                        startX = 0f,
+                                        endX = sideFadeWidth
+                                    ),
+                                    topLeft = Offset(0f, 0f),
+                                    size = Size(sideFadeWidth, h)
+                                )
+
+                                // 3. Right edge subtle feathering
+                                drawRect(
+                                    brush = Brush.horizontalGradient(
+                                        colors = listOf(
+                                            Color.Transparent,
+                                            SurfaceBackground.copy(alpha = 0.35f),
+                                            SurfaceBackground.copy(alpha = 0.85f)
+                                        ),
+                                        startX = (w - sideFadeWidth).coerceAtLeast(0f),
+                                        endX = w
+                                    ),
+                                    topLeft = Offset((w - sideFadeWidth).coerceAtLeast(0f), 0f),
+                                    size = Size(sideFadeWidth, h)
+                                )
+                            },
                         contentScale = ContentScale.FillWidth
                     )
                 }
@@ -379,7 +434,7 @@ fun HomeScreen(
                     }
                 }
 
-                // 8. Stretched Bottom Banner Ad with rounded corners matching cards
+                // 8. Stretched Bottom Banner Ad above system navigation
                 BannerAdView(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -391,9 +446,8 @@ fun HomeScreen(
                     containerBorderColor = Color(0xFF293B5B)
                 )
 
-                // 9. Bottom Footer with Rights & Credits
-                AppFooter(modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
-                Spacer(modifier = Modifier.height(4.dp))
+                // Reserved space above navigation bar
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
     }

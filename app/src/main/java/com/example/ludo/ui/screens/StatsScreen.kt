@@ -42,7 +42,12 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.outlined.Stars
+import androidx.compose.material.icons.outlined.VideoLibrary
+import androidx.compose.foundation.clickable
 import com.example.ludo.ads.BannerAdView
+import com.example.ludo.ads.NativeAdCard
+import com.example.ludo.ads.RemoteConfigManager
 import com.example.ludo.data.GamePreferences
 import com.example.ludo.ui.components.AppFooter
 import com.example.ludo.ui.components.GameBackground
@@ -71,7 +76,8 @@ import com.example.ui.theme.Typography
 @Composable
 fun StatsScreen(
     gamePreferences: GamePreferences?,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    onWatchRewardAd: (() -> Unit)? = null
 ) {
     var totalMatches by remember { mutableIntStateOf(gamePreferences?.totalMatches ?: 0) }
     var totalWins by remember { mutableIntStateOf(gamePreferences?.totalWins ?: 0) }
@@ -218,7 +224,98 @@ fun StatsScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                // Optional Rewarded Vault Bonus
+                if (onWatchRewardAd != null && RemoteConfigManager.isRewardedRerollEnabled()) {
+                    val currentPoints = gamePreferences?.bonusPoints ?: 0
+                    val currentRerolls = gamePreferences?.luckyRerollsCount ?: 0
+
+                    Text(
+                        text = "TOURNAMENT REWARDS VAULT",
+                        style = Typography.labelLarge.copy(letterSpacing = 1.0.sp),
+                        color = AccentPrimary,
+                        modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF0D1D38))
+                            .border(1.dp, GoldHighlight.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(StarGold.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Stars,
+                                    contentDescription = null,
+                                    tint = StarGold,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "FREE BONUS SUPPLY",
+                                    style = Typography.labelMedium.copy(
+                                        letterSpacing = 0.8.sp,
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    color = StarGold
+                                )
+                                Text(
+                                    text = "Watch short video for +500 XP & 1 Reroll ($currentPoints XP, $currentRerolls Rerolls)",
+                                    style = Typography.labelSmall.copy(fontSize = 11.sp),
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(AccentPrimary)
+                                .clickable { onWatchRewardAd() }
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Outlined.VideoLibrary,
+                                    contentDescription = null,
+                                    tint = Color(0xFF080F22),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Claim",
+                                    style = Typography.labelLarge.copy(fontSize = 12.sp, fontWeight = FontWeight.Bold),
+                                    color = Color(0xFF080F22)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Native Sponsored Ad Card for Stats & Profile
+                NativeAdCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    placementKey = com.example.ludo.ads.AdConstants.KEY_NATIVE_STATS
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
 
                 // Reset Button
                 GameButton(
@@ -233,7 +330,7 @@ fun StatsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 8.dp, bottom = 4.dp),
-                    placementKey = com.example.ludo.ads.AdConstants.KEY_BANNER_LOBBY,
+                    placementKey = com.example.ludo.ads.AdConstants.KEY_BANNER_STATS,
                     hasCardContainer = true,
                     cornerRadius = 14.dp,
                     containerBackground = Color(0xFF0D1D38),

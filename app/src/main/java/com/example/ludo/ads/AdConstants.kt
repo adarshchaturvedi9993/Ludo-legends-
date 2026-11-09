@@ -26,6 +26,11 @@ object AdConstants {
     const val KEY_REWARDED_REROLL = "rewarded_reroll_enabled"
     const val KEY_REWARDED_VICTORY_DOUBLE = "rewarded_victory_double_enabled"
     const val KEY_APP_OPEN_ENABLED = "app_open_enabled"
+    const val KEY_BANNER_STATS = "banner_stats_enabled"
+    const val KEY_BANNER_HOW_TO_PLAY = "banner_how_to_play_enabled"
+    const val KEY_NATIVE_STATS = "native_stats_enabled"
+    const val KEY_COOLDOWN_FULLSCREEN_SECONDS = "cooldown_fullscreen_seconds"
+    const val KEY_COOLDOWN_APP_OPEN_SECONDS = "cooldown_app_open_seconds"
 
     // Modes
     const val MODE_TEST = "test"

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.MusicOff
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Stars
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -103,7 +104,8 @@ fun GameScreen(
     onStateUpdated: (GameState) -> Unit,
     onGameFinished: (GameState) -> Unit,
     onExitToMenu: () -> Unit,
-    onRestartGame: () -> Unit
+    onRestartGame: () -> Unit,
+    onWatchRewardAd: (() -> Unit)? = null
 ) {
     var showPauseDialog by remember { mutableStateOf(false) }
     var isSoundMuted by remember { mutableStateOf(!soundManager.isSoundEnabled) }
@@ -473,6 +475,20 @@ fun GameScreen(
                             style = GameButtonStyle.PRIMARY_GOLD,
                             icon = Icons.Default.PlayArrow
                         )
+                        if (onWatchRewardAd != null && com.example.ludo.ads.RemoteConfigManager.isRewardedRerollEnabled()) {
+                            val currentRerolls = gamePreferences?.luckyRerollsCount ?: 0
+                            GameButton(
+                                text = "Claim +1 Lucky Reroll",
+                                subtitle = "Watch short video ($currentRerolls in bag, +500 XP)",
+                                onClick = {
+                                    soundManager.playButtonTap()
+                                    onWatchRewardAd()
+                                },
+                                style = GameButtonStyle.SECONDARY_GLASS,
+                                icon = Icons.Outlined.Stars,
+                                testTag = "pause_dialog_reward_button"
+                            )
+                        }
                         GameButton(
                             text = "Restart Match",
                             onClick = {

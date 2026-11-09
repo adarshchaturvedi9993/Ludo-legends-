@@ -108,7 +108,7 @@ fun HowToPlayScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 8.dp, bottom = 4.dp),
-                    placementKey = com.example.ludo.ads.AdConstants.KEY_BANNER_LOBBY,
+                    placementKey = com.example.ludo.ads.AdConstants.KEY_BANNER_HOW_TO_PLAY,
                     hasCardContainer = true,
                     cornerRadius = 14.dp,
                     containerBackground = androidx.compose.ui.graphics.Color(0xFF0D1D38),
