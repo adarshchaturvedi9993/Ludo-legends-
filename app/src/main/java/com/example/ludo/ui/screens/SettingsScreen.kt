@@ -18,14 +18,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.outlined.Accessibility
+import androidx.compose.material.icons.outlined.Animation
+import androidx.compose.material.icons.outlined.AutoMode
+import androidx.compose.material.icons.outlined.DeleteSweep
+import androidx.compose.material.icons.outlined.HourglassBottom
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Vibration
+import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -37,22 +40,33 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.ludo.audio.SoundManager
 import com.example.ludo.data.GamePreferences
+import com.example.ludo.ui.components.AppFooter
+import com.example.ludo.ui.components.GameBackground
+import com.example.ludo.ui.components.GameButton
+import com.example.ludo.ui.components.GameButtonStyle
+import com.example.ludo.ui.components.GameDialog
+import com.example.ludo.ui.components.GameTopBar
+import com.example.ludo.ui.components.GlassCard
 import com.example.ui.theme.AccentPrimary
 import com.example.ui.theme.BorderHairline
-import com.example.ui.theme.StarGold
 import com.example.ui.theme.SurfaceBackground
 import com.example.ui.theme.SurfaceElevated
-import com.example.ui.theme.SurfacePanel
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.Typography
 
+/**
+ * Production Settings Screen:
+ * Audio, Haptics, Gameplay (Auto-move, Turn timer), Accessibility (Color-blind symbols, Reduce motion)
+ */
 @Composable
 fun SettingsScreen(
     gamePreferences: GamePreferences,
@@ -62,308 +76,300 @@ fun SettingsScreen(
     var isSoundOn by remember { mutableStateOf(gamePreferences.isSoundEnabled) }
     var isMusicOn by remember { mutableStateOf(gamePreferences.isMusicEnabled) }
     var isHapticsOn by remember { mutableStateOf(gamePreferences.isHapticsEnabled) }
+    var isAutoMoveOn by remember { mutableStateOf(gamePreferences.isAutoMoveSinglePawnEnabled) }
+    var isTurnTimerOn by remember { mutableStateOf(gamePreferences.isTurnTimerEnabled) }
+    var isColorBlindOn by remember { mutableStateOf(gamePreferences.isColorBlindModeEnabled) }
+    var isReduceMotionOn by remember { mutableStateOf(gamePreferences.isReduceMotionEnabled) }
+    var showClearSavedDialog by remember { mutableStateOf(false) }
 
     val scrollState = rememberScrollState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(SurfaceBackground)
-            .padding(horizontal = 20.dp)
-            .testTag("settings_screen")
-    ) {
-        // App bar
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 16.dp, bottom = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(
-                onClick = onBackClick,
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(SurfacePanel)
-                    .border(1.dp, BorderHairline, CircleShape)
-                    .testTag("settings_back_button")
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = TextPrimary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(
-                text = "Settings & Rules",
-                style = Typography.titleMedium,
-                color = TextPrimary,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-
+    GameBackground(enableTwinkle = !isReduceMotionOn) {
         Column(
             modifier = Modifier
-                .weight(1f)
-                .verticalScroll(scrollState)
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .testTag("settings_screen")
         ) {
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Audio & Feedback Section
-            Text(
-                text = "Audio & Haptics",
-                style = Typography.labelLarge,
-                color = TextSecondary
+            GameTopBar(
+                title = "Preferences",
+                onBackClick = onBackClick
             )
-            Spacer(modifier = Modifier.height(8.dp))
 
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(SurfacePanel)
-                    .border(1.dp, BorderHairline, RoundedCornerShape(8.dp))
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .padding(vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Sound FX Row
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Outlined.VolumeUp,
-                            contentDescription = null,
-                            tint = TextSecondary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text("Sound Effects", style = Typography.bodyLarge, color = TextPrimary)
-                            Text("Tactile dice rolls and piece clacks", style = Typography.bodyMedium, color = TextMuted)
-                        }
-                    }
-                    Switch(
-                        checked = isSoundOn,
-                        onCheckedChange = { checked ->
-                            isSoundOn = checked
-                            gamePreferences.isSoundEnabled = checked
-                            soundManager.isSoundEnabled = checked
-                            if (checked) soundManager.playButtonTap()
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = SurfaceBackground,
-                            checkedTrackColor = AccentPrimary,
-                            uncheckedThumbColor = TextMuted,
-                            uncheckedTrackColor = SurfaceElevated
-                        ),
-                        modifier = Modifier.testTag("sound_switch")
-                    )
-                }
-
-                // Divider
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(BorderHairline)
+                // 1. Audio & Haptics Section
+                Text(
+                    text = "AUDIO & FEEDBACK",
+                    style = Typography.labelLarge.copy(letterSpacing = 1.0.sp),
+                    color = AccentPrimary
                 )
 
-                // Background Music Row
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Outlined.MusicNote,
-                            contentDescription = null,
-                            tint = TextSecondary,
-                            modifier = Modifier.size(20.dp)
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SettingSwitchRow(
+                            icon = Icons.Outlined.VolumeUp,
+                            title = "Sound Effects",
+                            description = "Tactile clacks, roll bounces, and pop sounds",
+                            checked = isSoundOn,
+                            testTag = "sound_switch",
+                            onCheckedChange = { checked ->
+                                isSoundOn = checked
+                                gamePreferences.isSoundEnabled = checked
+                                soundManager.isSoundEnabled = checked
+                                if (checked) soundManager.playButtonTap()
+                            }
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text("Background Music", style = Typography.bodyLarge, color = TextPrimary)
-                            Text("Subtle, ambient acoustic loop", style = Typography.bodyMedium, color = TextMuted)
-                        }
+
+                        DividerLine()
+
+                        SettingSwitchRow(
+                            icon = Icons.Outlined.MusicNote,
+                            title = "Background Music",
+                            description = "Calming ambient acoustic kalimba melody",
+                            checked = isMusicOn,
+                            testTag = "music_switch",
+                            onCheckedChange = { checked ->
+                                isMusicOn = checked
+                                gamePreferences.isMusicEnabled = checked
+                                soundManager.isMusicEnabled = checked
+                                if (checked) soundManager.playButtonTap()
+                            }
+                        )
+
+                        DividerLine()
+
+                        SettingSwitchRow(
+                            icon = Icons.Outlined.Vibration,
+                            title = "Haptic Vibrations",
+                            description = "Tactile clicks on pawn pick, roll, and victory",
+                            checked = isHapticsOn,
+                            testTag = "haptics_switch",
+                            onCheckedChange = { checked ->
+                                isHapticsOn = checked
+                                gamePreferences.isHapticsEnabled = checked
+                                soundManager.isHapticsEnabled = checked
+                                if (checked) soundManager.playButtonTap()
+                            }
+                        )
                     }
-                    Switch(
-                        checked = isMusicOn,
-                        onCheckedChange = { checked ->
-                            isMusicOn = checked
-                            gamePreferences.isMusicEnabled = checked
-                            soundManager.isMusicEnabled = checked
-                            if (checked) soundManager.playButtonTap()
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = SurfaceBackground,
-                            checkedTrackColor = AccentPrimary,
-                            uncheckedThumbColor = TextMuted,
-                            uncheckedTrackColor = SurfaceElevated
-                        ),
-                        modifier = Modifier.testTag("music_switch")
-                    )
                 }
 
-                // Divider
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(BorderHairline)
+                // 2. Gameplay Controls Section
+                Text(
+                    text = "GAMEPLAY MECHANICS",
+                    style = Typography.labelLarge.copy(letterSpacing = 1.0.sp),
+                    color = AccentPrimary
                 )
 
-                // Haptics Row
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Outlined.Vibration,
-                            contentDescription = null,
-                            tint = TextSecondary,
-                            modifier = Modifier.size(20.dp)
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SettingSwitchRow(
+                            icon = Icons.Outlined.AutoMode,
+                            title = "Auto-Move Single Pawn",
+                            description = "Automatically moves pawn after 400ms if only 1 move is legal",
+                            checked = isAutoMoveOn,
+                            testTag = "auto_move_switch",
+                            onCheckedChange = { checked ->
+                                isAutoMoveOn = checked
+                                gamePreferences.isAutoMoveSinglePawnEnabled = checked
+                                soundManager.playButtonTap()
+                            }
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text("Vibration", style = Typography.bodyLarge, color = TextPrimary)
-                            Text("Haptic clicks on roll and capture", style = Typography.bodyMedium, color = TextMuted)
-                        }
+
+                        DividerLine()
+
+                        SettingSwitchRow(
+                            icon = Icons.Outlined.HourglassBottom,
+                            title = "Turn Timer (15s)",
+                            description = "Circular ring countdown with automated action on timeout",
+                            checked = isTurnTimerOn,
+                            testTag = "turn_timer_switch",
+                            onCheckedChange = { checked ->
+                                isTurnTimerOn = checked
+                                gamePreferences.isTurnTimerEnabled = checked
+                                soundManager.playButtonTap()
+                            }
+                        )
                     }
-                    Switch(
-                        checked = isHapticsOn,
-                        onCheckedChange = { checked ->
-                            isHapticsOn = checked
-                            gamePreferences.isHapticsEnabled = checked
-                            soundManager.isHapticsEnabled = checked
-                            if (checked) soundManager.playButtonTap()
+                }
+
+                // 3. Accessibility Section
+                Text(
+                    text = "ACCESSIBILITY & MOTION",
+                    style = Typography.labelLarge.copy(letterSpacing = 1.0.sp),
+                    color = AccentPrimary
+                )
+
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SettingSwitchRow(
+                            icon = Icons.Outlined.Visibility,
+                            title = "Color-Blind Symbols",
+                            description = "Draws distinct symbols (● ▲ ■ ★) on pawns for clear identification",
+                            checked = isColorBlindOn,
+                            testTag = "color_blind_switch",
+                            onCheckedChange = { checked ->
+                                isColorBlindOn = checked
+                                gamePreferences.isColorBlindModeEnabled = checked
+                                soundManager.playButtonTap()
+                            }
+                        )
+
+                        DividerLine()
+
+                        SettingSwitchRow(
+                            icon = Icons.Outlined.Animation,
+                            title = "Reduce Motion",
+                            description = "Minimizes particle twinkling and high-frequency animations",
+                            checked = isReduceMotionOn,
+                            testTag = "reduce_motion_switch",
+                            onCheckedChange = { checked ->
+                                isReduceMotionOn = checked
+                                gamePreferences.isReduceMotionEnabled = checked
+                                soundManager.playButtonTap()
+                            }
+                        )
+                    }
+                }
+
+                // 4. Data & Session Management
+                Text(
+                    text = "DATA MANAGEMENT",
+                    style = Typography.labelLarge.copy(letterSpacing = 1.0.sp),
+                    color = AccentPrimary
+                )
+
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Shield,
+                                contentDescription = null,
+                                tint = AccentPrimary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("100% Offline & Private", style = Typography.bodyLarge, color = Color.White)
+                                Text("All state is safely stored in local device storage", style = Typography.bodyMedium, color = TextMuted)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        GameButton(
+                            text = "Clear Preserved Match",
+                            onClick = { showClearSavedDialog = true },
+                            style = GameButtonStyle.SECONDARY_GLASS,
+                            icon = Icons.Outlined.DeleteSweep,
+                            height = 48.dp,
+                            testTag = "clear_saved_game_button"
+                        )
+                    }
+                }
+
+                AppFooter(modifier = Modifier.padding(top = 8.dp, bottom = 16.dp))
+            }
+        }
+
+        // Clear Match Confirmation Dialog
+        GameDialog(
+            visible = showClearSavedDialog,
+            title = "Clear Preserved Match?",
+            onDismissRequest = { showClearSavedDialog = false },
+            buttons = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GameButton(
+                        text = "Yes, Clear Session",
+                        onClick = {
+                            gamePreferences.clearSavedGame()
+                            showClearSavedDialog = false
+                            soundManager.playButtonTap()
                         },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = SurfaceBackground,
-                            checkedTrackColor = AccentPrimary,
-                            uncheckedThumbColor = TextMuted,
-                            uncheckedTrackColor = SurfaceElevated
-                        ),
-                        modifier = Modifier.testTag("haptics_switch")
+                        style = GameButtonStyle.DANGER
+                    )
+                    GameButton(
+                        text = "Cancel",
+                        onClick = { showClearSavedDialog = false },
+                        style = GameButtonStyle.SECONDARY_GLASS
                     )
                 }
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Authentic Rules Guide
+        ) {
             Text(
-                text = "Ludo Rules Reference",
-                style = Typography.labelLarge,
-                color = TextSecondary
+                text = "This will remove the current in-progress match from saved memory.",
+                style = Typography.bodyMedium,
+                color = TextSecondary,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(SurfacePanel)
-                    .border(1.dp, BorderHairline, RoundedCornerShape(8.dp))
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                RuleItem(
-                    title = "Unlocking Tokens (Roll a 6)",
-                    description = "Tokens start in the yard. Rolling a 6 moves a token onto the track starting square and awards an extra roll."
-                )
-                RuleItem(
-                    title = "Capturing Opponents",
-                    description = "Landing on an opponent's token sends it back to their yard and grants you a bonus turn. Safe star tiles cannot be captured."
-                )
-                RuleItem(
-                    title = "Safe Star Zones",
-                    description = "There are 8 marked stars on the board. Multiple tokens of any player can coexist on a safe tile without risk."
-                )
-                RuleItem(
-                    title = "Exact Finish Required",
-                    description = "Tokens entering the home stretch require the exact dice value to reach the center triangle. Overshooting is not allowed."
-                )
-                RuleItem(
-                    title = "Three Sixes Rule",
-                    description = "Rolling 6 three consecutive times forfeits the turn and passes immediately to the next player."
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Offline Guarantee Notice
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(SurfaceElevated)
-                    .border(1.dp, BorderHairline, RoundedCornerShape(8.dp))
-                    .padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Shield,
-                    contentDescription = null,
-                    tint = AccentPrimary,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(
-                        text = "100% Offline & Private",
-                        style = Typography.titleMedium,
-                        color = TextPrimary
-                    )
-                    Text(
-                        text = "No internet permissions, no trackers, zero ads.",
-                        style = Typography.bodyMedium,
-                        color = TextMuted
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
 
 @Composable
-private fun RuleItem(title: String, description: String) {
-    Column {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(6.dp)
-                    .clip(CircleShape)
-                    .background(AccentPrimary)
+private fun SettingSwitchRow(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    checked: Boolean,
+    testTag: String,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = TextSecondary,
+                modifier = Modifier.size(22.dp)
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = title,
-                style = Typography.titleMedium,
-                color = TextPrimary,
-                fontWeight = FontWeight.SemiBold
-            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(title, style = Typography.bodyLarge, color = Color.White)
+                Text(description, style = Typography.bodyMedium.copy(fontSize = 11.sp), color = TextMuted)
+            }
         }
-        Spacer(modifier = Modifier.height(3.dp))
-        Text(
-            text = description,
-            style = Typography.bodyMedium,
-            color = TextSecondary,
-            modifier = Modifier.padding(start = 14.dp)
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = SurfaceBackground,
+                checkedTrackColor = AccentPrimary,
+                uncheckedThumbColor = TextMuted,
+                uncheckedTrackColor = SurfaceElevated
+            ),
+            modifier = Modifier.testTag(testTag)
         )
     }
+}
+
+@Composable
+private fun DividerLine() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(BorderHairline)
+    )
 }

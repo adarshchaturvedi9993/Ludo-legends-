@@ -19,13 +19,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
@@ -44,15 +40,17 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ludo.ui.components.GameBackground
+import com.example.ludo.ui.components.GameButton
+import com.example.ludo.ui.components.GameButtonStyle
+import com.example.ludo.ui.components.GameTopBar
+import com.example.ludo.ui.components.GlassCard
 import com.example.ui.theme.AccentPrimary
-import com.example.ui.theme.BorderActive
 import com.example.ui.theme.BorderHairline
-import com.example.ui.theme.GoldHighlight
 import com.example.ui.theme.LudoBlue
 import com.example.ui.theme.LudoGreen
 import com.example.ui.theme.LudoRed
 import com.example.ui.theme.LudoYellow
-import com.example.ui.theme.SurfaceBackground
 import com.example.ui.theme.SurfaceElevated
 import com.example.ui.theme.SurfacePanel
 import com.example.ui.theme.TextMuted
@@ -108,204 +106,130 @@ fun PlayerCountScreen(
         )
     )
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(SurfaceBackground)
-            .padding(horizontal = 20.dp)
-            .testTag("player_count_screen"),
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
-        // Top App Bar
-        Column {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp, bottom = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = onBackClick,
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(SurfacePanel)
-                        .border(1.dp, BorderHairline, RoundedCornerShape(8.dp))
-                        .testTag("player_count_back_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = TextPrimary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(
-                        text = "Match Setup",
-                        style = Typography.titleMedium.copy(
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.SemiBold
-                        ),
-                        color = TextPrimary
-                    )
-                    Text(
-                        text = "Pass & Play • Local Match",
-                        style = Typography.labelSmall.copy(fontSize = 11.sp),
-                        color = TextMuted
-                    )
-                }
-            }
+    GameBackground {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .testTag("player_count_screen"),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                GameTopBar(
+                    title = "Player Count",
+                    subtitle = "Pass & Play",
+                    onBackClick = onBackClick
+                )
 
-            Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
-            Text(
-                text = "Select Player Count",
-                style = Typography.headlineSmall.copy(
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-0.3).sp
-                ),
-                color = TextPrimary
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Choose the number of contenders participating in this match.",
-                style = Typography.bodyMedium.copy(fontSize = 13.sp),
-                color = TextSecondary
-            )
+                Text(
+                    text = "SELECT PLAYERS",
+                    style = Typography.headlineMedium,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Choose how many contenders will participate locally.",
+                    style = Typography.bodyMedium,
+                    color = TextSecondary
+                )
 
-            Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-            // Player count cards
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                options.forEach { option ->
-                    val isSelected = selectedCount == option.count
-                    val borderColor = if (isSelected) AccentPrimary else BorderHairline
-                    val bgColor = if (isSelected) SurfaceElevated else SurfacePanel
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    options.forEach { option ->
+                        val isSelected = selectedCount == option.count
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(bgColor)
-                            .border(if (isSelected) 1.5.dp else 1.dp, borderColor, RoundedCornerShape(10.dp))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = ripple(bounded = true),
-                                onClick = { selectedCount = option.count }
-                            )
-                            .padding(horizontal = 16.dp, vertical = 14.dp)
-                            .testTag("option_count_${option.count}"),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Miniature Board Layout Diagram
-                        MiniBoardQuadrantDiagram(
-                            activeQuadrants = option.activeQuadrants,
-                            isSelected = isSelected,
-                            modifier = Modifier.size(46.dp)
-                        )
-
-                        Spacer(modifier = Modifier.width(16.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = option.title,
-                                    style = Typography.titleMedium.copy(
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    ),
-                                    color = if (isSelected) AccentPrimary else TextPrimary
+                        GlassCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            isActive = isSelected,
+                            activeBorderColor = AccentPrimary,
+                            onClick = { selectedCount = option.count }
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                MiniBoardQuadrantDiagram(
+                                    activeQuadrants = option.activeQuadrants,
+                                    isSelected = isSelected,
+                                    modifier = Modifier.size(46.dp)
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                // Subtle badge
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(if (isSelected) AccentPrimary.copy(alpha = 0.15f) else Color(0xFF080F22))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
+
+                                Spacer(modifier = Modifier.width(16.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = option.title,
+                                            style = Typography.titleLarge.copy(fontSize = 17.sp, fontWeight = FontWeight.Bold),
+                                            color = if (isSelected) AccentPrimary else Color.White
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(if (isSelected) AccentPrimary.copy(alpha = 0.2f) else Color(0xFF080F22))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "${option.count}P",
+                                                style = Typography.labelSmall.copy(
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                ),
+                                                color = if (isSelected) AccentPrimary else TextMuted
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(3.dp))
                                     Text(
-                                        text = "${option.count}P",
-                                        style = Typography.labelSmall.copy(
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold
-                                        ),
-                                        color = if (isSelected) AccentPrimary else TextMuted
+                                        text = option.subtitle,
+                                        style = Typography.bodyMedium.copy(fontSize = 12.sp),
+                                        color = TextSecondary,
+                                        maxLines = 1
                                     )
                                 }
-                            }
-                            Spacer(modifier = Modifier.height(3.dp))
-                            Text(
-                                text = option.subtitle,
-                                style = Typography.bodyMedium.copy(fontSize = 12.sp),
-                                color = TextSecondary,
-                                maxLines = 1
-                            )
-                        }
 
-                        Spacer(modifier = Modifier.width(12.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
 
-                        // Radio check indicator
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(CircleShape)
-                                .background(if (isSelected) AccentPrimary else Color(0xFF080F22))
-                            .border(1.dp, if (isSelected) AccentPrimary else BorderHairline, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (isSelected) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    tint = Color(0xFF080F22),
-                                    modifier = Modifier.size(14.dp)
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isSelected) AccentPrimary else Color(0xFF080F22))
+                                        .border(1.dp, if (isSelected) AccentPrimary else BorderHairline, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = Color(0xFF080F22),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
-        }
 
-        // Bottom Continue button
-        Column(modifier = Modifier.padding(bottom = 20.dp)) {
-            Button(
-                onClick = { onContinue(selectedCount) },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = AccentPrimary,
-                    contentColor = Color(0xFF080F22)
-                ),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .testTag("continue_to_customization_button")
-            ) {
-                Text(
+            Column(modifier = Modifier.padding(bottom = 16.dp)) {
+                GameButton(
                     text = "Continue: Names & Colors",
-                    style = Typography.titleMedium.copy(
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
+                    onClick = { onContinue(selectedCount) },
+                    style = GameButtonStyle.PRIMARY_GOLD,
+                    trailingIcon = Icons.AutoMirrored.Filled.ArrowForward,
+                    testTag = "continue_to_customization_button"
                 )
             }
         }
     }
 }
 
-/**
- * Miniature 4-quadrant board schematic showing which corners are in play.
- */
 @Composable
 private fun MiniBoardQuadrantDiagram(
     activeQuadrants: List<PlayerQuadrant>,
@@ -320,7 +244,6 @@ private fun MiniBoardQuadrantDiagram(
         val quadW = (w - gap) / 2f
         val quadH = (h - gap) / 2f
 
-        // Board background outline
         drawRoundRect(
             color = if (isSelected) Color(0xFF152441) else Color(0xFF080F22),
             topLeft = Offset.Zero,
@@ -328,8 +251,6 @@ private fun MiniBoardQuadrantDiagram(
             cornerRadius = CornerRadius(cornerRadius * 1.5f, cornerRadius * 1.5f)
         )
 
-        // 4 Quadrants
-        // Top Left
         val tlActive = activeQuadrants.contains(PlayerQuadrant.TOP_LEFT)
         drawRoundRect(
             color = if (tlActive) PlayerQuadrant.TOP_LEFT.color else Color(0xFF1D2C43),
@@ -338,7 +259,6 @@ private fun MiniBoardQuadrantDiagram(
             cornerRadius = CornerRadius(cornerRadius, cornerRadius)
         )
 
-        // Top Right
         val trActive = activeQuadrants.contains(PlayerQuadrant.TOP_RIGHT)
         drawRoundRect(
             color = if (trActive) PlayerQuadrant.TOP_RIGHT.color else Color(0xFF1D2C43),
@@ -347,7 +267,6 @@ private fun MiniBoardQuadrantDiagram(
             cornerRadius = CornerRadius(cornerRadius, cornerRadius)
         )
 
-        // Bottom Left
         val blActive = activeQuadrants.contains(PlayerQuadrant.BOTTOM_LEFT)
         drawRoundRect(
             color = if (blActive) PlayerQuadrant.BOTTOM_LEFT.color else Color(0xFF1D2C43),
@@ -356,7 +275,6 @@ private fun MiniBoardQuadrantDiagram(
             cornerRadius = CornerRadius(cornerRadius, cornerRadius)
         )
 
-        // Bottom Right
         val brActive = activeQuadrants.contains(PlayerQuadrant.BOTTOM_RIGHT)
         drawRoundRect(
             color = if (brActive) PlayerQuadrant.BOTTOM_RIGHT.color else Color(0xFF1D2C43),
@@ -365,7 +283,6 @@ private fun MiniBoardQuadrantDiagram(
             cornerRadius = CornerRadius(cornerRadius, cornerRadius)
         )
 
-        // Center cross indicator
         drawCircle(
             color = if (isSelected) AccentPrimary else Color(0xFF34435A),
             radius = 3.dp.toPx(),
@@ -373,4 +290,3 @@ private fun MiniBoardQuadrantDiagram(
         )
     }
 }
-

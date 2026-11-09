@@ -32,6 +32,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -39,6 +40,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.ludo.model.BoardCoordinates
 import com.example.ludo.model.GridCoord
 import com.example.ludo.model.Player
@@ -48,6 +50,7 @@ import com.example.ui.theme.DarkAlternateCell
 import com.example.ui.theme.DarkBoardBackground
 import com.example.ui.theme.DarkGridBorder
 import com.example.ui.theme.DarkGridCell
+import com.example.ui.theme.GoldRimGradientColors
 import com.example.ui.theme.LudoBlue
 import com.example.ui.theme.LudoBlueHomeSurface
 import com.example.ui.theme.LudoGreen
@@ -59,70 +62,142 @@ import com.example.ui.theme.LudoYellowHomeSurface
 import com.example.ui.theme.StarGold
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
  * Premium Commercial Dark Ludo Board:
  *
- * Exact User Palette:
- * - Board background: #101A2C
- * - Grid cells: #18253B
- * - Alternate cells: #1D2C43
- * - Grid borders: #34435A
- * - Red: #F04444 (dark red home surface #24141B)
- * - Green: #19B96B (dark green home surface #12261E)
- * - Yellow: #FFC928 (dark yellow home surface #272214)
- * - Blue: #398BFF (dark blue home surface #132034)
- *
- * Geometry & Features:
- * - Perfectly square (1:1 aspect ratio), 15x15 equal cells.
- * - 4 distinct dark-tinted home areas with recessed circular pedestals (zero pure white).
- * - 52 main-path cells alternating between #18253B and #1D2C43.
- * - Starting cells, 8 safe-zone stars, and 4 home corridors accurately rendered.
- * - Central 4-color triangle meeting precisely at (7.5, 7.5) with brass star hub.
- * - Perfectly aligned 2.5D pawns with hop animation and multi-token clustering.
+ * Requirements:
+ * - Direct board pawn selection (NO bottom sheet popup).
+ * - Movable pawns get pulsing glow ring, scale pulse (1.0 -> 1.12), and bouncing chevron arrow above.
+ * - Soft destination-tile preview: ghost pawn + highlighted target cell + dotted path.
+ * - 48dp minimum touch target for accessibility and error-free pawn tapping.
+ * - Layered gradients, safe stars, and central brass star victory hub.
  */
 @Composable
 fun LudoBoardView(
     players: List<Player>,
     currentPlayer: Player,
     movableTokenIds: Set<Int>,
+    diceValue: Int,
     onTokenClick: (Int) -> Unit,
     modifier: Modifier = Modifier,
     animatingTokenId: Int? = null,
     animatingTokenCoord: GridCoord? = null,
-    animatingHopElevationPx: Float = 0f
+    animatingHopElevationPx: Float = 0f,
+    showColorBlindSymbol: Boolean = false
 ) {
     BoxWithConstraints(
         modifier = modifier
             .aspectRatio(1f)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(DarkBoardBackground)
             .border(
                 width = 3.dp,
-                brush = Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFFFFE078),
-                        Color(0xFFF5C928),
-                        Color(0xFF8A6A12),
-                        Color(0xFFF5C928),
-                        Color(0xFFFFE078)
-                    )
-                ),
-                shape = RoundedCornerShape(14.dp)
+                brush = Brush.linearGradient(GoldRimGradientColors),
+                shape = RoundedCornerShape(16.dp)
             )
             .testTag("ludo_board_view")
     ) {
         val boardSizePx = constraints.maxWidth.toFloat()
         val cellSizePx = boardSizePx / BoardCoordinates.GRID_SIZE
 
-        // 1. Draw static premium dark board geometry and markings
+        // 1. Draw Static Dark Board Geometry
         Canvas(modifier = Modifier.fillMaxSize()) {
             drawDarkLudoBoard(cellSizePx)
         }
 
-        // 2. Render authentic 2.5D pawns on top
+        // 2. Compute destination tile previews and dotted paths for movable pawns
+        val movableTokens = remember(currentPlayer, movableTokenIds, diceValue) {
+            currentPlayer.tokens.filter { movableTokenIds.contains(it.id) }
+        }
+
+        val destinationPreviews = remember(movableTokens, diceValue) {
+            movableTokens.mapNotNull { token ->
+                val path = BoardCoordinates.computeHopPath(token, diceValue)
+                if (path.size > 1) {
+                    Triple(token, path.last(), path)
+                } else null
+            }
+        }
+
+        // Draw destination highlights & dotted paths on board
+        if (animatingTokenId == null && movableTokenIds.isNotEmpty()) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val dottedEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f)
+                val previewPlayerColor = currentPlayer.color.primaryColor
+
+                destinationPreviews.forEach { (token, destCoord, pathCoords) ->
+                    val destX = (destCoord.col + 0.5f) * cellSizePx
+                    val destY = (destCoord.row + 0.5f) * cellSizePx
+
+                    // Highlight target destination cell with soft glow
+                    drawRoundRect(
+                        color = previewPlayerColor.copy(alpha = 0.22f),
+                        topLeft = Offset(destCoord.col * cellSizePx, destCoord.row * cellSizePx),
+                        size = Size(cellSizePx, cellSizePx),
+                        cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                    )
+                    drawRoundRect(
+                        color = StarGold.copy(alpha = 0.75f),
+                        topLeft = Offset(destCoord.col * cellSizePx + 1.dp.toPx(), destCoord.row * cellSizePx + 1.dp.toPx()),
+                        size = Size(cellSizePx - 2.dp.toPx(), cellSizePx - 2.dp.toPx()),
+                        cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()),
+                        style = Stroke(width = 1.6.dp.toPx(), pathEffect = dottedEffect)
+                    )
+
+                    // Dotted connection line from token to destination
+                    if (pathCoords.size > 2) {
+                        val path = Path()
+                        pathCoords.forEachIndexed { idx, coord ->
+                            val px = (coord.col + 0.5f) * cellSizePx
+                            val py = (coord.row + 0.5f) * cellSizePx
+                            if (idx == 0) path.moveTo(px, py) else path.lineTo(px, py)
+                        }
+                        drawPath(
+                            path = path,
+                            color = previewPlayerColor.copy(alpha = 0.55f),
+                            style = Stroke(width = 2.dp.toPx(), pathEffect = dottedEffect)
+                        )
+                    }
+                }
+            }
+        }
+
+        // 3. Render Ghost Pawns at destination tiles
+        val density = LocalDensity.current
+        if (animatingTokenId == null && movableTokenIds.isNotEmpty()) {
+            destinationPreviews.forEach { (token, destCoord, _) ->
+                val destX = (destCoord.col + 0.5f) * cellSizePx
+                val destY = (destCoord.row + 0.5f) * cellSizePx
+                val pawnSizePx = cellSizePx * 0.88f
+                val pawnSizeDp = with(density) { pawnSizePx.toDp() }
+
+                Box(
+                    modifier = Modifier
+                        .offset {
+                            IntOffset(
+                                x = (destX - pawnSizePx / 2f).roundToInt(),
+                                y = (destY - pawnSizePx / 2f).roundToInt()
+                            )
+                        }
+                        .size(pawnSizeDp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    TurnedPawn(
+                        color = token.color,
+                        isMovable = false,
+                        isFinished = false,
+                        size = pawnSizeDp,
+                        isGhost = true
+                    )
+                }
+            }
+        }
+
+        // 4. Render Pawns with direct touch hitboxes (minimum 48dp)
         val allTokens = players.flatMap { it.tokens }
         val tokensByCoord = allTokens.groupBy { token ->
             val coord = if (token.id == animatingTokenId && animatingTokenCoord != null) {
@@ -133,18 +208,16 @@ fun LudoBoardView(
             Pair((coord.row * 10).roundToInt(), (coord.col * 10).roundToInt())
         }
 
-        val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+        val infiniteTransition = rememberInfiniteTransition(label = "pawnPulse")
         val pulseScale = infiniteTransition.animateFloat(
             initialValue = 1.0f,
-            targetValue = 1.15f,
+            targetValue = 1.12f,
             animationSpec = infiniteRepeatable(
-                animation = tween(600, easing = FastOutSlowInEasing),
+                animation = tween(550, easing = FastOutSlowInEasing),
                 repeatMode = RepeatMode.Reverse
             ),
             label = "tokenPulse"
         )
-
-        val density = LocalDensity.current
 
         for (player in players) {
             val isCurrentPlayer = player.id == currentPlayer.id
@@ -163,7 +236,6 @@ fun LudoBoardView(
 
                 val isMovable = isCurrentPlayer && movableTokenIds.contains(token.id)
 
-                // Cluster offset when multiple tokens occupy the same tile
                 val (offsetX, offsetY) = if (clusterSize > 1 && token.state != TokenState.YARD && !isAnimatingThisToken) {
                     val angle = (2.0 * PI * indexInCluster / clusterSize).toFloat()
                     val radius = cellSizePx * 0.22f
@@ -175,9 +247,12 @@ fun LudoBoardView(
                 val centerX = (coord.col + 0.5f) * cellSizePx + offsetX
                 val centerY = (coord.row + 0.5f) * cellSizePx + offsetY
 
-                // Calibrated pawn sizing for crisp visual weight and touch targets
                 val pawnSizePx = if (token.state == TokenState.YARD) cellSizePx * 0.94f else cellSizePx * 0.92f
                 val pawnSizeDp = with(density) { pawnSizePx.toDp() }
+
+                // Minimum 48dp touch hitbox
+                val touchHitboxDp = max(48f, pawnSizeDp.value).dp
+                val touchHitboxPx = with(density) { touchHitboxDp.toPx() }
 
                 val hopElevation = if (isAnimatingThisToken) animatingHopElevationPx else 0f
 
@@ -185,37 +260,58 @@ fun LudoBoardView(
                     modifier = Modifier
                         .offset {
                             IntOffset(
-                                x = (centerX - pawnSizePx / 2f).roundToInt(),
-                                y = (centerY - pawnSizePx / 2f).roundToInt()
+                                x = (centerX - touchHitboxPx / 2f).roundToInt(),
+                                y = (centerY - touchHitboxPx / 2f).roundToInt()
                             )
                         }
-                        .size(pawnSizeDp)
-                        .scale(if (isMovable) pulseScale.value else 1.0f)
+                        .size(touchHitboxDp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
-                            indication = ripple(bounded = true, radius = pawnSizeDp / 2),
+                            indication = if (isMovable) ripple(bounded = false, radius = touchHitboxDp / 2) else null,
                             enabled = isMovable,
                             onClick = { onTokenClick(token.id) }
                         )
                         .testTag("pawn_${player.color.name}_${token.id}"),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (isMovable) {
-                        // Animated glowing selection outline around eligible pawn
-                        Box(
-                            modifier = Modifier
-                                .size(pawnSizeDp * 1.18f)
-                                .border(1.6.dp, StarGold.copy(alpha = 0.90f), CircleShape)
+                    Box(
+                        modifier = Modifier
+                            .size(pawnSizeDp)
+                            .scale(if (isMovable) pulseScale.value else 1.0f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        TurnedPawn(
+                            color = player.color,
+                            isMovable = isMovable,
+                            isFinished = token.isFinished,
+                            size = pawnSizeDp,
+                            hopElevationPx = hopElevation,
+                            showColorBlindSymbol = showColorBlindSymbol
                         )
                     }
 
-                    TurnedPawn(
-                        color = player.color,
-                        isMovable = isMovable,
-                        isFinished = token.isFinished,
-                        size = pawnSizeDp,
-                        hopElevationPx = hopElevation
-                    )
+                    // Multi-token count badge if clustered and more than 1
+                    if (clusterSize > 1 && indexInCluster == 0 && token.state != TokenState.YARD && !isAnimatingThisToken) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = (-4).dp, y = 4.dp)
+                                .size(16.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF0A1428))
+                                .border(1.dp, StarGold, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            androidx.compose.material3.Text(
+                                text = clusterSize.toString(),
+                                style = androidx.compose.ui.text.TextStyle(
+                                    fontSize = 9.sp,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                    color = StarGold
+                                )
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -223,113 +319,39 @@ fun LudoBoardView(
 }
 
 /**
- * Draws the complete, authentic dark Ludo board geometry:
- * - 4 Corner Yards (6x6 cells) with dark-tinted surfaces and dark recessed pedestals.
- * - 52 Perimeter track cells with alternating #18253B and #1D2C43 tones and #34435A grid borders.
- * - 4 Solid starting cells with white/gold safe stars.
- * - 4 Perimeter safe star cells (indices 8, 21, 34, 47).
- * - 4 Solid colored home corridors (5 cells each).
- * - Central 4-color triangle confluence meeting at (7.5, 7.5) with brass star emblem.
+ * Draws the authentic dark Ludo board geometry with high visual fidelity.
  */
 private fun DrawScope.drawDarkLudoBoard(cell: Float) {
     val hairline = 1.dp.toPx()
     val gridBorderColor = DarkGridBorder
 
-    // 1. Draw Corner Yards (6x6 cells each, completely removing pure white)
-    // Top-Left: Red Yard (Rows 0..5, Cols 0..5)
-    drawDarkYard(
-        left = 0f,
-        top = 0f,
-        size = cell * 6,
-        cell = cell,
-        playerColor = LudoRed,
-        surfaceTint = LudoRedHomeSurface,
-        slots = BoardCoordinates.RED_YARD_SLOTS
-    )
+    // 1. Draw Corner Yards (6x6 cells)
+    drawDarkYard(0f, 0f, cell * 6, cell, LudoRed, LudoRedHomeSurface, BoardCoordinates.RED_YARD_SLOTS)
+    drawDarkYard(cell * 9, 0f, cell * 6, cell, LudoGreen, LudoGreenHomeSurface, BoardCoordinates.GREEN_YARD_SLOTS)
+    drawDarkYard(cell * 9, cell * 9, cell * 6, cell, LudoYellow, LudoYellowHomeSurface, BoardCoordinates.YELLOW_YARD_SLOTS)
+    drawDarkYard(0f, cell * 9, cell * 6, cell, LudoBlue, LudoBlueHomeSurface, BoardCoordinates.BLUE_YARD_SLOTS)
 
-    // Top-Right: Green Yard (Rows 0..5, Cols 9..14)
-    drawDarkYard(
-        left = cell * 9,
-        top = 0f,
-        size = cell * 6,
-        cell = cell,
-        playerColor = LudoGreen,
-        surfaceTint = LudoGreenHomeSurface,
-        slots = BoardCoordinates.GREEN_YARD_SLOTS
-    )
-
-    // Bottom-Right: Yellow Yard (Rows 9..14, Cols 9..14)
-    drawDarkYard(
-        left = cell * 9,
-        top = cell * 9,
-        size = cell * 6,
-        cell = cell,
-        playerColor = LudoYellow,
-        surfaceTint = LudoYellowHomeSurface,
-        slots = BoardCoordinates.YELLOW_YARD_SLOTS
-    )
-
-    // Bottom-Left: Blue Yard (Rows 9..14, Cols 0..5)
-    drawDarkYard(
-        left = 0f,
-        top = cell * 9,
-        size = cell * 6,
-        cell = cell,
-        playerColor = LudoBlue,
-        surfaceTint = LudoBlueHomeSurface,
-        slots = BoardCoordinates.BLUE_YARD_SLOTS
-    )
-
-    // 2. Draw 52 Perimeter Track Cells with alternating dark tones (#18253B and #1D2C43)
+    // 2. Draw 52 Perimeter Track Cells
     val trackIndices = BoardCoordinates.TRACK_TILES
     for (i in trackIndices.indices) {
         val coord = trackIndices[i]
         val x = coord.col * cell
         val y = coord.row * cell
-
-        // Alternating dark cell colors
         val cellColor = if (i % 2 == 0) DarkGridCell else DarkAlternateCell
 
-        drawRect(
-            color = cellColor,
-            topLeft = Offset(x, y),
-            size = Size(cell, cell)
-        )
-        // #34435A Grid border
-        drawRect(
-            color = gridBorderColor,
-            topLeft = Offset(x, y),
-            size = Size(cell, cell),
-            style = Stroke(width = hairline)
-        )
+        drawRect(cellColor, Offset(x, y), Size(cell, cell))
+        drawRect(gridBorderColor, Offset(x, y), Size(cell, cell), style = Stroke(width = hairline))
     }
 
-    // 3. Draw Starting Cells (Solid player colors with safe stars)
+    // 3. Draw Starting Cells
     fun drawStartCell(index: Int, color: Color) {
         val coord = trackIndices[index]
         val x = coord.col * cell
         val y = coord.row * cell
 
-        // Solid player color cell
-        drawRect(
-            color = color,
-            topLeft = Offset(x, y),
-            size = Size(cell, cell)
-        )
-        // Grid border
-        drawRect(
-            color = gridBorderColor,
-            topLeft = Offset(x, y),
-            size = Size(cell, cell),
-            style = Stroke(width = hairline)
-        )
-        // Star on starting cell (bright white/cream star with dark outline)
-        drawBoardStar(
-            centerX = (coord.col + 0.5f) * cell,
-            centerY = (coord.row + 0.5f) * cell,
-            radius = cell * 0.34f,
-            color = Color.White
-        )
+        drawRect(color, Offset(x, y), Size(cell, cell))
+        drawRect(gridBorderColor, Offset(x, y), Size(cell, cell), style = Stroke(width = hairline))
+        drawBoardStar((coord.col + 0.5f) * cell, (coord.row + 0.5f) * cell, cell * 0.34f, Color.White)
     }
 
     drawStartCell(0, LudoRed)
@@ -337,33 +359,15 @@ private fun DrawScope.drawDarkLudoBoard(cell: Float) {
     drawStartCell(26, LudoYellow)
     drawStartCell(39, LudoBlue)
 
-    // 4. Draw Safe Stars on the 4 track safe tiles (Indices: 8, 21, 34, 47)
-    val trackSafeIndices = listOf(8, 21, 34, 47)
-    for (safeIdx in trackSafeIndices) {
+    // 4. Draw Safe Stars on track tiles (8, 21, 34, 47)
+    listOf(8, 21, 34, 47).forEach { safeIdx ->
         val coord = trackIndices[safeIdx]
         val x = coord.col * cell
         val y = coord.row * cell
 
-        // Subtle highlight tile backing for safe star
-        drawRect(
-            color = DarkAlternateCell,
-            topLeft = Offset(x, y),
-            size = Size(cell, cell)
-        )
-        drawRect(
-            color = gridBorderColor,
-            topLeft = Offset(x, y),
-            size = Size(cell, cell),
-            style = Stroke(width = hairline)
-        )
-
-        // Safe star in rich gold #FFC928
-        drawBoardStar(
-            centerX = (coord.col + 0.5f) * cell,
-            centerY = (coord.row + 0.5f) * cell,
-            radius = cell * 0.34f,
-            color = StarGold
-        )
+        drawRect(DarkAlternateCell, Offset(x, y), Size(cell, cell))
+        drawRect(gridBorderColor, Offset(x, y), Size(cell, cell), style = Stroke(width = hairline))
+        drawBoardStar((coord.col + 0.5f) * cell, (coord.row + 0.5f) * cell, cell * 0.34f, StarGold)
     }
 
     // 5. Draw Solid Colored Home Run Corridors (5 cells each)
@@ -371,17 +375,8 @@ private fun DrawScope.drawDarkLudoBoard(cell: Float) {
         for (coord in coords) {
             val x = coord.col * cell
             val y = coord.row * cell
-            drawRect(
-                color = color,
-                topLeft = Offset(x, y),
-                size = Size(cell, cell)
-            )
-            drawRect(
-                color = gridBorderColor,
-                topLeft = Offset(x, y),
-                size = Size(cell, cell),
-                style = Stroke(width = hairline)
-            )
+            drawRect(color, Offset(x, y), Size(cell, cell))
+            drawRect(gridBorderColor, Offset(x, y), Size(cell, cell), style = Stroke(width = hairline))
         }
     }
 
@@ -390,7 +385,7 @@ private fun DrawScope.drawDarkLudoBoard(cell: Float) {
     drawHomeLane(BoardCoordinates.YELLOW_HOME, LudoYellow)
     drawHomeLane(BoardCoordinates.BLUE_HOME, LudoBlue)
 
-    // 6. Draw Central Home Area with 4 Accurately Aligned Coloured Triangles
+    // 6. Central 4-Color Victory Confluence
     val cx = 7.5f * cell
     val cy = 7.5f * cell
     val goalLeft = 6f * cell
@@ -398,73 +393,41 @@ private fun DrawScope.drawDarkLudoBoard(cell: Float) {
     val goalTop = 6f * cell
     val goalBottom = 9f * cell
 
-    // Center base surface (#101A2C)
-    drawRect(
-        color = DarkBoardBackground,
-        topLeft = Offset(goalLeft, goalTop),
-        size = Size(cell * 3, cell * 3)
-    )
+    drawRect(DarkBoardBackground, Offset(goalLeft, goalTop), Size(cell * 3, cell * 3))
 
-    // Red Triangle (Left pointing to center)
+    // Red triangle
     val redPath = Path().apply {
-        moveTo(goalLeft, goalTop)
-        lineTo(cx, cy)
-        lineTo(goalLeft, goalBottom)
-        close()
+        moveTo(goalLeft, goalTop); lineTo(cx, cy); lineTo(goalLeft, goalBottom); close()
     }
     drawPath(redPath, LudoRed, style = Fill)
 
-    // Green Triangle (Top pointing to center)
+    // Green triangle
     val greenPath = Path().apply {
-        moveTo(goalLeft, goalTop)
-        lineTo(goalRight, goalTop)
-        lineTo(cx, cy)
-        close()
+        moveTo(goalLeft, goalTop); lineTo(goalRight, goalTop); lineTo(cx, cy); close()
     }
     drawPath(greenPath, LudoGreen, style = Fill)
 
-    // Yellow Triangle (Right pointing to center)
+    // Yellow triangle
     val yellowPath = Path().apply {
-        moveTo(goalRight, goalTop)
-        lineTo(goalRight, goalBottom)
-        lineTo(cx, cy)
-        close()
+        moveTo(goalRight, goalTop); lineTo(goalRight, goalBottom); lineTo(cx, cy); close()
     }
     drawPath(yellowPath, LudoYellow, style = Fill)
 
-    // Blue Triangle (Bottom pointing to center)
+    // Blue triangle
     val bluePath = Path().apply {
-        moveTo(goalLeft, goalBottom)
-        lineTo(cx, cy)
-        lineTo(goalRight, goalBottom)
-        close()
+        moveTo(goalLeft, goalBottom); lineTo(cx, cy); lineTo(goalRight, goalBottom); close()
     }
     drawPath(bluePath, LudoBlue, style = Fill)
 
-    // Clean boundary and diagonal grid lines through center
     val centerStroke = 1.5.dp.toPx()
     drawLine(gridBorderColor, Offset(goalLeft, goalTop), Offset(goalRight, goalBottom), strokeWidth = centerStroke)
     drawLine(gridBorderColor, Offset(goalLeft, goalBottom), Offset(goalRight, goalTop), strokeWidth = centerStroke)
+    drawRect(gridBorderColor, Offset(goalLeft, goalTop), Size(cell * 3, cell * 3), style = Stroke(width = centerStroke))
 
-    // Center box outline
-    drawRect(
-        color = gridBorderColor,
-        topLeft = Offset(goalLeft, goalTop),
-        size = Size(cell * 3, cell * 3),
-        style = Stroke(width = centerStroke)
-    )
-
-    // Center Brass Star / Compass Junction Emblem
+    // Center Gold Star Hub Emblem
     drawCenterVictoryEmblem(cx, cy, cell * 0.48f)
 }
 
-/**
- * Renders an authentic dark Ludo home yard:
- * - Solid colored frame in player's traditional color (#F04444, #19B96B, #FFC928, #398BFF).
- * - Dark tinted inner background surface (#24141B, #12261E, #272214, #132034).
- * - Dark recessed panel card (#141F33 with subtle tint).
- * - 4 circular recessed pedestals with dark socket discs (zero pure white).
- */
 private fun DrawScope.drawDarkYard(
     left: Float,
     top: Float,
@@ -476,15 +439,12 @@ private fun DrawScope.drawDarkYard(
 ) {
     val hairline = 1.dp.toPx()
 
-    // 1. Yard outer tinted base
     drawRoundRect(
         color = surfaceTint,
         topLeft = Offset(left, top),
         size = Size(size, size),
         cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
     )
-
-    // Yard solid colored outer boundary stroke
     drawRoundRect(
         color = playerColor,
         topLeft = Offset(left, top),
@@ -493,13 +453,11 @@ private fun DrawScope.drawDarkYard(
         style = Stroke(width = 2.dp.toPx())
     )
 
-    // 2. Dark recessed inner card (replacing pure white card)
     val innerMargin = cell * 0.85f
     val innerSize = size - (innerMargin * 2)
     val innerCardLeft = left + innerMargin
     val innerCardTop = top + innerMargin
 
-    // Subtle dark gradient panel
     drawRoundRect(
         brush = Brush.verticalGradient(
             colors = listOf(DarkGridCell, Color(0xFF141F33)),
@@ -518,48 +476,18 @@ private fun DrawScope.drawDarkYard(
         style = Stroke(width = hairline)
     )
 
-    // 3. Four recessed circular pedestals located at token slots
     for (slot in slots) {
         val pedestalCx = (slot.col + 0.5f) * cell
         val pedestalCy = (slot.row + 0.5f) * cell
 
-        // Outer collar ring in player color
-        drawCircle(
-            color = playerColor,
-            radius = cell * 0.44f,
-            center = Offset(pedestalCx, pedestalCy)
-        )
-        // Dark recessed socket disc (#101A2C with subtle inner depth)
-        drawCircle(
-            color = DarkBoardBackground,
-            radius = cell * 0.38f,
-            center = Offset(pedestalCx, pedestalCy)
-        )
-        // Concentric target ring in player color
-        drawCircle(
-            color = playerColor.copy(alpha = 0.5f),
-            radius = cell * 0.22f,
-            center = Offset(pedestalCx, pedestalCy),
-            style = Stroke(width = 1.dp.toPx())
-        )
-        // Center jewel pin
-        drawCircle(
-            color = playerColor,
-            radius = cell * 0.08f,
-            center = Offset(pedestalCx, pedestalCy)
-        )
+        drawCircle(playerColor, cell * 0.44f, Offset(pedestalCx, pedestalCy))
+        drawCircle(DarkBoardBackground, cell * 0.38f, Offset(pedestalCx, pedestalCy))
+        drawCircle(playerColor.copy(alpha = 0.5f), cell * 0.22f, Offset(pedestalCx, pedestalCy), style = Stroke(width = 1.dp.toPx()))
+        drawCircle(playerColor, cell * 0.08f, Offset(pedestalCx, pedestalCy))
     }
 }
 
-/**
- * Draws a sharp 5-pointed star in pure vector mathematics.
- */
-private fun DrawScope.drawBoardStar(
-    centerX: Float,
-    centerY: Float,
-    radius: Float,
-    color: Color
-) {
+private fun DrawScope.drawBoardStar(centerX: Float, centerY: Float, radius: Float, color: Color) {
     val path = Path()
     val innerRadius = radius * 0.40f
     val numPoints = 5
@@ -574,32 +502,13 @@ private fun DrawScope.drawBoardStar(
     }
     path.close()
     drawPath(path, color, style = Fill)
-    // Dark hairline border around star for crisp contrast against any background
     drawPath(path, Color.Black.copy(alpha = 0.35f), style = Stroke(width = 0.8.dp.toPx()))
 }
 
-/**
- * Draws the central brass victory hub emblem at the confluence of the 4 home triangles.
- */
-private fun DrawScope.drawCenterVictoryEmblem(
-    cx: Float,
-    cy: Float,
-    radius: Float
-) {
-    // Outer brass disc
-    drawCircle(
-        color = Color(0xFF101A2C),
-        radius = radius,
-        center = Offset(cx, cy)
-    )
-    drawCircle(
-        color = StarGold,
-        radius = radius,
-        center = Offset(cx, cy),
-        style = Stroke(width = 1.5.dp.toPx())
-    )
+private fun DrawScope.drawCenterVictoryEmblem(cx: Float, cy: Float, radius: Float) {
+    drawCircle(Color(0xFF101A2C), radius, Offset(cx, cy))
+    drawCircle(StarGold, radius, Offset(cx, cy), style = Stroke(width = 1.5.dp.toPx()))
 
-    // 8-point gold compass star inside
     val path = Path()
     val points = 8
     val innerRadius = radius * 0.42f
@@ -612,9 +521,5 @@ private fun DrawScope.drawCenterVictoryEmblem(
     }
     path.close()
     drawPath(path, StarGold, style = Fill)
-    drawCircle(
-        color = Color.White.copy(alpha = 0.9f),
-        radius = radius * 0.16f,
-        center = Offset(cx, cy)
-    )
+    drawCircle(Color.White.copy(alpha = 0.9f), radius * 0.16f, Offset(cx, cy))
 }

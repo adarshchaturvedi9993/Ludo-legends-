@@ -1,5 +1,11 @@
 package com.example.ludo.ui.components
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -21,16 +27,13 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * Premium Commercial 2.5D Vector Pawn:
- *
- * Requirements:
- * - Consistent, elegant pawn silhouette across all four colors.
- * - Perfectly rounded spherical head with directional specular highlight.
- * - Sculpted lathe-turned body proportions (flared foot, tapered waist, collar torus).
- * - Smooth 2.5D volume with subtle shadows and directional key light from top-left.
- * - Distinct player colors (#F04444, #19B96B, #FFC928, #398BFF) with dark contour separation.
- * - Dynamic contact drop shadow that reacts to hop-by-hop animation height.
- * - Pure Compose Canvas rendering with zero emojis or Unicode symbols.
+ * Premium 2.5D lathe-turned vector pawn:
+ * - Spherical glossy head with 315° radial specular key light
+ * - Torus collar ring with specular glint
+ * - Sculpted tapered waist & flared foot with contact drop shadow
+ * - Movable state: pulsing gold/player glow ring, bouncing chevron arrow above crown
+ * - Accessibility: Optional color-blind symbols (●, ▲, ■, ★) on crown
+ * - Ghost pawn support for destination preview
  */
 @Composable
 fun TurnedPawn(
@@ -39,14 +42,32 @@ fun TurnedPawn(
     isFinished: Boolean,
     modifier: Modifier = Modifier,
     size: Dp = 34.dp,
-    hopElevationPx: Float = 0f
+    hopElevationPx: Float = 0f,
+    isGhost: Boolean = false,
+    showColorBlindSymbol: Boolean = false
 ) {
+    val infiniteTransition = rememberInfiniteTransition(label = "pawnArrow")
+    val arrowBounce = if (isMovable) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = -6f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(450, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "arrow"
+        ).value
+    } else 0f
+
     Canvas(modifier = modifier.size(size)) {
         drawTurnedPawn(
             color = color,
             isMovable = isMovable,
             isFinished = isFinished,
-            hopElevation = hopElevationPx
+            hopElevation = hopElevationPx,
+            isGhost = isGhost,
+            arrowOffsetPx = arrowBounce,
+            showColorBlindSymbol = showColorBlindSymbol
         )
     }
 }
@@ -55,56 +76,56 @@ fun DrawScope.drawTurnedPawn(
     color: PlayerColor,
     isMovable: Boolean,
     isFinished: Boolean,
-    hopElevation: Float = 0f
+    hopElevation: Float = 0f,
+    isGhost: Boolean = false,
+    arrowOffsetPx: Float = 0f,
+    showColorBlindSymbol: Boolean = false
 ) {
     val w = size.width
     val h = size.height
     val cx = w * 0.5f
+    val alphaFactor = if (isGhost) 0.42f else 1.0f
 
-    // 1. Dynamic Contact Shadow on cell surface
-    val shadowW = (w * 0.82f) * (1f - (hopElevation / 140f).coerceIn(0f, 0.40f))
-    val shadowH = (h * 0.22f) * (1f - (hopElevation / 140f).coerceIn(0f, 0.40f))
-    val shadowAlpha = (0.52f - (hopElevation / 160f).coerceIn(0f, 0.35f))
-    drawOval(
-        color = Color.Black.copy(alpha = shadowAlpha),
-        topLeft = Offset(cx - shadowW / 2f, h * 0.78f + (hopElevation * 0.08f)),
-        size = Size(shadowW, shadowH)
-    )
+    // 1. Dynamic Contact Drop Shadow
+    if (!isGhost) {
+        val shadowW = (w * 0.82f) * (1f - (hopElevation / 140f).coerceIn(0f, 0.40f))
+        val shadowH = (h * 0.22f) * (1f - (hopElevation / 140f).coerceIn(0f, 0.40f))
+        val shadowAlpha = (0.52f - (hopElevation / 160f).coerceIn(0f, 0.35f))
+        drawOval(
+            color = Color.Black.copy(alpha = shadowAlpha),
+            topLeft = Offset(cx - shadowW / 2f, h * 0.78f + (hopElevation * 0.08f)),
+            size = Size(shadowW, shadowH)
+        )
+    }
 
-    // Vertical hop elevation translation
     val lift = -hopElevation
 
-    // 2. Luminous Selection / Movable Indicator Ring
-    if (isMovable) {
+    // 2. Movable Indicator: Pulsing glow halo
+    if (isMovable && !isGhost) {
         val haloW = w * 0.94f
         val haloH = h * 0.28f
-        // Golden glow halo
         drawOval(
             brush = Brush.radialGradient(
-                colors = listOf(StarGold.copy(alpha = 0.95f), StarGold.copy(alpha = 0.2f), Color.Transparent),
+                colors = listOf(
+                    color.accentColor.copy(alpha = 0.95f),
+                    StarGold.copy(alpha = 0.45f),
+                    Color.Transparent
+                ),
                 center = Offset(cx, h * 0.84f + lift),
                 radius = haloW * 0.55f
             ),
             topLeft = Offset(cx - haloW / 2f, h * 0.70f + lift),
             size = Size(haloW, haloH)
         )
-        // Crisp inner gold stroke ring
         drawOval(
             color = StarGold,
             topLeft = Offset(cx - haloW * 0.46f, h * 0.72f + lift),
             size = Size(haloW * 0.92f, haloH * 0.85f),
             style = Stroke(width = 2.dp.toPx())
         )
-        // Pure white inner glint
-        drawOval(
-            color = Color.White.copy(alpha = 0.90f),
-            topLeft = Offset(cx - haloW * 0.42f, h * 0.74f + lift),
-            size = Size(haloW * 0.84f, haloH * 0.70f),
-            style = Stroke(width = 1.dp.toPx())
-        )
     }
 
-    // 3. Flared Foot Pedestal Base
+    // 3. Flared Foot Pedestal
     val footBottomY = h * 0.94f + lift
     val footTopY = h * 0.72f + lift
     val footHalfW = w * 0.39f
@@ -126,36 +147,36 @@ fun DrawScope.drawTurnedPawn(
         close()
     }
 
-    // 2.5D Lighting Gradient: Key light from 315° (top-left) to deep shadow on right
     val baseGradient = Brush.horizontalGradient(
         colors = listOf(
-            color.accentColor,
-            color.primaryColor,
-            color.darkShade
+            color.accentColor.copy(alpha = alphaFactor),
+            color.primaryColor.copy(alpha = alphaFactor),
+            color.darkShade.copy(alpha = alphaFactor)
         ),
         startX = cx - footHalfW,
         endX = cx + footHalfW
     )
     drawPath(footPath, baseGradient, style = Fill)
-    // Dark outline for crisp separation against any cell color
-    drawPath(footPath, color.darkShade.copy(alpha = 0.95f), style = Stroke(width = 1.dp.toPx()))
+    drawPath(
+        footPath,
+        color.darkShade.copy(alpha = 0.95f * alphaFactor),
+        style = Stroke(width = 1.dp.toPx())
+    )
 
     // Pedestal Bottom Rim Bevel
     val rimH = h * 0.10f
     drawOval(
         brush = Brush.horizontalGradient(
-            colors = listOf(color.accentColor, color.primaryColor, color.darkShade),
+            colors = listOf(
+                color.accentColor.copy(alpha = alphaFactor),
+                color.primaryColor.copy(alpha = alphaFactor),
+                color.darkShade.copy(alpha = alphaFactor)
+            ),
             startX = cx - footHalfW,
             endX = cx + footHalfW
         ),
         topLeft = Offset(cx - footHalfW, footBottomY - rimH * 0.6f),
         size = Size(footHalfW * 2f, rimH)
-    )
-    drawOval(
-        color = color.darkShade.copy(alpha = 0.95f),
-        topLeft = Offset(cx - footHalfW, footBottomY - rimH * 0.6f),
-        size = Size(footHalfW * 2f, rimH),
-        style = Stroke(width = 1.dp.toPx())
     )
 
     // 4. Conical Sculpted Body / Waist
@@ -179,20 +200,14 @@ fun DrawScope.drawTurnedPawn(
         )
         close()
     }
-
-    val waistGradient = Brush.horizontalGradient(
-        colors = listOf(
-            color.accentColor,
-            color.primaryColor,
-            color.darkShade
-        ),
-        startX = cx - footTopHalfW,
-        endX = cx + footTopHalfW
+    drawPath(waistPath, baseGradient, style = Fill)
+    drawPath(
+        waistPath,
+        color.darkShade.copy(alpha = 0.95f * alphaFactor),
+        style = Stroke(width = 0.9.dp.toPx())
     )
-    drawPath(waistPath, waistGradient, style = Fill)
-    drawPath(waistPath, color.darkShade.copy(alpha = 0.95f), style = Stroke(width = 0.9.dp.toPx()))
 
-    // 5. Torus Collar Ring below Head
+    // 5. Torus Collar Ring
     val collarY = h * 0.42f + lift
     val collarHalfW = w * 0.23f
     val collarH = h * 0.09f
@@ -200,10 +215,10 @@ fun DrawScope.drawTurnedPawn(
     drawOval(
         brush = Brush.horizontalGradient(
             colors = listOf(
-                Color.White.copy(alpha = 0.85f),
-                color.accentColor,
-                color.primaryColor,
-                color.darkShade
+                Color.White.copy(alpha = 0.85f * alphaFactor),
+                color.accentColor.copy(alpha = alphaFactor),
+                color.primaryColor.copy(alpha = alphaFactor),
+                color.darkShade.copy(alpha = alphaFactor)
             ),
             startX = cx - collarHalfW,
             endX = cx + collarHalfW
@@ -211,32 +226,18 @@ fun DrawScope.drawTurnedPawn(
         topLeft = Offset(cx - collarHalfW, collarY - collarH / 2f),
         size = Size(collarHalfW * 2f, collarH)
     )
-    drawOval(
-        color = color.darkShade.copy(alpha = 0.95f),
-        topLeft = Offset(cx - collarHalfW, collarY - collarH / 2f),
-        size = Size(collarHalfW * 2f, collarH),
-        style = Stroke(width = 0.9.dp.toPx())
-    )
 
-    // Collar Specular Highlight Glint
-    drawOval(
-        color = Color.White.copy(alpha = 0.90f),
-        topLeft = Offset(cx - collarHalfW * 0.60f, collarY - collarH * 0.35f),
-        size = Size(collarHalfW * 0.45f, collarH * 0.35f)
-    )
-
-    // 6. Spherical Crown Head (Smooth 2.5D with 315° radial specular key light)
+    // 6. Spherical Crown Head with 315° radial specular key light
     val headRadius = w * 0.27f
     val headCenter = Offset(cx, h * 0.25f + lift)
 
-    // Spherical lighting gradient
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                Color.White.copy(alpha = 0.95f),
-                color.accentColor,
-                color.primaryColor,
-                color.darkShade
+                Color.White.copy(alpha = 0.95f * alphaFactor),
+                color.accentColor.copy(alpha = alphaFactor),
+                color.primaryColor.copy(alpha = alphaFactor),
+                color.darkShade.copy(alpha = alphaFactor)
             ),
             center = Offset(headCenter.x - headRadius * 0.35f, headCenter.y - headRadius * 0.35f),
             radius = headRadius * 1.30f
@@ -245,56 +246,88 @@ fun DrawScope.drawTurnedPawn(
         center = headCenter
     )
 
-    // Dark contour stroke around spherical head
     drawCircle(
-        color = color.darkShade.copy(alpha = 0.95f),
+        color = color.darkShade.copy(alpha = 0.95f * alphaFactor),
         radius = headRadius,
         center = headCenter,
         style = Stroke(width = 1.1.dp.toPx())
     )
 
-    // Luminous animated outline for eligible/movable pawns
-    if (isMovable) {
-        drawCircle(
-            color = StarGold,
-            radius = headRadius + 2.2.dp.toPx(),
-            center = headCenter,
-            style = Stroke(width = 1.8.dp.toPx())
-        )
-    }
-
-    // Specular Highlight Glint (soft white oval on top-left)
+    // Specular Highlight Glint on sphere
     drawOval(
-        color = Color.White.copy(alpha = 0.95f),
+        color = Color.White.copy(alpha = 0.95f * alphaFactor),
         topLeft = Offset(headCenter.x - headRadius * 0.62f, headCenter.y - headRadius * 0.68f),
         size = Size(headRadius * 0.54f, headRadius * 0.34f)
     )
 
-    // Secondary subtle rim reflection on opposite bottom-right edge
-    drawArc(
-        color = Color.White.copy(alpha = 0.30f),
-        startAngle = 25f,
-        sweepAngle = 90f,
-        useCenter = false,
-        topLeft = Offset(headCenter.x - headRadius * 0.90f, headCenter.y - headRadius * 0.90f),
-        size = Size(headRadius * 1.80f, headRadius * 1.80f),
-        style = Stroke(width = 0.9.dp.toPx())
-    )
-
-    // 7. Finished Winner Badge (Golden Star on Crown)
+    // 7. Finished Winner Badge (Golden Star)
     if (isFinished) {
         drawCircle(
-            color = StarGold,
+            color = StarGold.copy(alpha = alphaFactor),
             radius = headRadius * 0.42f,
             center = headCenter
         )
-        drawPawnMiniStar(headCenter.x, headCenter.y, headRadius * 0.32f, Color.White)
+        drawPawnMiniStar(headCenter.x, headCenter.y, headRadius * 0.32f, Color.White.copy(alpha = alphaFactor))
+    }
+
+    // 8. Color-Blind Mode Symbol (● for Red, ▲ for Green, ■ for Yellow, ★ for Blue)
+    if (showColorBlindSymbol && !isFinished) {
+        drawColorBlindSymbol(cx, headCenter.y, headRadius * 0.36f, color)
+    }
+
+    // 9. Bouncing Chevron Arrow above head when movable
+    if (isMovable && !isGhost) {
+        val arrowTipY = headCenter.y - headRadius - 4.dp.toPx() + arrowOffsetPx
+        val arrowW = 8.dp.toPx()
+        val arrowH = 6.dp.toPx()
+        val arrowPath = Path().apply {
+            moveTo(cx - arrowW / 2f, arrowTipY - arrowH)
+            lineTo(cx, arrowTipY)
+            lineTo(cx + arrowW / 2f, arrowTipY - arrowH)
+        }
+        drawPath(
+            path = arrowPath,
+            color = StarGold,
+            style = Stroke(width = 2.5.dp.toPx())
+        )
+        drawPath(
+            path = arrowPath,
+            color = Color.White,
+            style = Stroke(width = 1.2.dp.toPx())
+        )
     }
 }
 
-/**
- * Draws a crisp miniature 5-point star on crown of finished tokens.
- */
+private fun DrawScope.drawColorBlindSymbol(cx: Float, cy: Float, radius: Float, color: PlayerColor) {
+    val symColor = Color.White.copy(alpha = 0.95f)
+    val stroke = Stroke(width = 1.4.dp.toPx())
+    when (color) {
+        PlayerColor.RED -> { // Circle
+            drawCircle(color = symColor, radius = radius, center = Offset(cx, cy), style = stroke)
+        }
+        PlayerColor.GREEN -> { // Triangle
+            val p = Path().apply {
+                moveTo(cx, cy - radius)
+                lineTo(cx + radius, cy + radius * 0.8f)
+                lineTo(cx - radius, cy + radius * 0.8f)
+                close()
+            }
+            drawPath(p, color = symColor, style = stroke)
+        }
+        PlayerColor.YELLOW -> { // Square
+            drawRect(
+                color = symColor,
+                topLeft = Offset(cx - radius * 0.8f, cy - radius * 0.8f),
+                size = Size(radius * 1.6f, radius * 1.6f),
+                style = stroke
+            )
+        }
+        PlayerColor.BLUE -> { // Star
+            drawPawnMiniStar(cx, cy, radius, symColor)
+        }
+    }
+}
+
 private fun DrawScope.drawPawnMiniStar(cx: Float, cy: Float, radius: Float, color: Color) {
     val path = Path()
     val innerRadius = radius * 0.42f

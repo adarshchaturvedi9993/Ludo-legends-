@@ -2,6 +2,7 @@ package com.example.ludo.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -31,10 +32,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,22 +46,18 @@ import androidx.compose.ui.unit.sp
 import com.example.ludo.model.Player
 import com.example.ludo.model.TokenState
 import com.example.ui.theme.AccentPrimary
-import com.example.ui.theme.BorderActive
 import com.example.ui.theme.BorderHairline
+import com.example.ui.theme.GoldHighlight
 import com.example.ui.theme.StarGold
-import com.example.ui.theme.SurfaceElevated
-import com.example.ui.theme.SurfacePanel
-import com.example.ui.theme.TextMuted
-import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.Typography
 
 /**
- * Dedicated Player Panel with Individual 3D Dice matching Reference Image 1:
+ * Dedicated Player Panel with Individual 3D Dice:
  * - 2.5D TurnedPawn avatar in player's color.
  * - Player name and 4 colored circular status pips.
- * - White square dice showing real engine roll.
- * - Player-color tinted gradient background and glowing border when active.
+ * - Turn change: active player panel glows, inactive panels dim to 60%.
+ * - Integrated Turn Timer Ring indicator.
  * - Active pointer triangle pointing toward the board.
  */
 @Composable
@@ -69,6 +68,7 @@ fun PlayerDicePanel(
     isRolling: Boolean,
     canRoll: Boolean,
     turnStatusHint: String? = null,
+    turnTimerProgress: Float? = null,
     alignDiceRight: Boolean = true,
     isTopPanel: Boolean = true,
     onBounce: () -> Unit = {},
@@ -79,6 +79,12 @@ fun PlayerDicePanel(
         targetValue = if (isActive) player.color.primaryColor else BorderHairline,
         animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
         label = "panelBorder"
+    )
+
+    val panelAlpha by animateFloatAsState(
+        targetValue = if (isActive) 1.0f else 0.60f,
+        animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
+        label = "panelDim"
     )
 
     val isInteractive = isActive && canRoll
@@ -100,7 +106,7 @@ fun PlayerDicePanel(
     }
 
     Column(
-        modifier = modifier,
+        modifier = modifier.alpha(panelAlpha),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // If bottom panel and active: pointer points upwards to the board
@@ -133,7 +139,7 @@ fun PlayerDicePanel(
                     enabled = isInteractive,
                     onClick = onRollClick
                 )
-                .padding(horizontal = 10.dp, vertical = 6.dp)
+                .padding(horizontal = 8.dp, vertical = 6.dp)
                 .testTag("player_panel_${player.color.name.lowercase()}"),
             contentAlignment = Alignment.Center
         ) {
@@ -143,25 +149,37 @@ fun PlayerDicePanel(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 if (!alignDiceRight) {
-                    Realistic3DDiceView(
-                        value = diceValue,
-                        isRolling = isRolling,
-                        enabled = isInteractive,
-                        size = 44.dp,
-                        accentColor = player.color.primaryColor,
-                        onBounce = onBounce,
-                        onRollClick = onRollClick,
-                        modifier = Modifier.testTag("dice_${player.color.name.lowercase()}")
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(contentAlignment = Alignment.Center) {
+                        Realistic3DDiceView(
+                            value = diceValue,
+                            isRolling = isRolling,
+                            enabled = isInteractive,
+                            size = 42.dp,
+                            accentColor = player.color.primaryColor,
+                            onBounce = onBounce,
+                            onRollClick = onRollClick,
+                            modifier = Modifier.testTag("dice_${player.color.name.lowercase()}")
+                        )
+                        if (isActive && turnTimerProgress != null) {
+                            Canvas(modifier = Modifier.size(48.dp)) {
+                                drawArc(
+                                    color = AccentPrimary,
+                                    startAngle = -90f,
+                                    sweepAngle = 360f * turnTimerProgress,
+                                    useCenter = false,
+                                    style = Stroke(width = 2.dp.toPx())
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
                 }
 
-                // Left: Pawn Avatar + Name + 4 Status Dots
+                // Avatar + Name + 4 Token Status Dots
                 Row(
                     modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 2.5D TurnedPawn Miniature Avatar
                     TurnedPawn(
                         color = player.color,
                         isMovable = false,
@@ -169,7 +187,7 @@ fun PlayerDicePanel(
                         size = 28.dp
                     )
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
 
                     Column(
                         verticalArrangement = Arrangement.Center
@@ -179,7 +197,7 @@ fun PlayerDicePanel(
                             Text(
                                 text = player.name,
                                 style = Typography.titleMedium.copy(
-                                    fontSize = 13.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 ),
                                 color = if (isActive) Color.White else TextSecondary,
@@ -197,11 +215,11 @@ fun PlayerDicePanel(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(3.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
 
                         // 4 Token Status Pips
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(3.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             player.tokens.forEach { token ->
@@ -228,7 +246,7 @@ fun PlayerDicePanel(
                                                 .size(8.dp)
                                                 .clip(CircleShape)
                                                 .background(player.color.primaryColor)
-                                                .border(0.8.dp, Color.White.copy(alpha = 0.6f), CircleShape)
+                                                .border(0.8.dp, Color.White.copy(alpha = 0.7f), CircleShape)
                                         )
                                     }
                                     TokenState.YARD -> {
@@ -236,7 +254,8 @@ fun PlayerDicePanel(
                                             modifier = Modifier
                                                 .size(8.dp)
                                                 .clip(CircleShape)
-                                                .background(player.color.primaryColor)
+                                                .background(player.color.primaryColor.copy(alpha = 0.5f))
+                                                .border(0.6.dp, player.color.darkShade, CircleShape)
                                         )
                                     }
                                 }
@@ -247,16 +266,29 @@ fun PlayerDicePanel(
 
                 if (alignDiceRight) {
                     Spacer(modifier = Modifier.width(6.dp))
-                    Realistic3DDiceView(
-                        value = diceValue,
-                        isRolling = isRolling,
-                        enabled = isInteractive,
-                        size = 44.dp,
-                        accentColor = player.color.primaryColor,
-                        onBounce = onBounce,
-                        onRollClick = onRollClick,
-                        modifier = Modifier.testTag("dice_${player.color.name.lowercase()}")
-                    )
+                    Box(contentAlignment = Alignment.Center) {
+                        Realistic3DDiceView(
+                            value = diceValue,
+                            isRolling = isRolling,
+                            enabled = isInteractive,
+                            size = 42.dp,
+                            accentColor = player.color.primaryColor,
+                            onBounce = onBounce,
+                            onRollClick = onRollClick,
+                            modifier = Modifier.testTag("dice_${player.color.name.lowercase()}")
+                        )
+                        if (isActive && turnTimerProgress != null) {
+                            Canvas(modifier = Modifier.size(48.dp)) {
+                                drawArc(
+                                    color = AccentPrimary,
+                                    startAngle = -90f,
+                                    sweepAngle = 360f * turnTimerProgress,
+                                    useCenter = false,
+                                    style = Stroke(width = 2.dp.toPx())
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

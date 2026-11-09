@@ -21,32 +21,46 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.ludo.model.GameState
 import com.example.ludo.model.Player
 import com.example.ludo.ui.components.ConfettiEffect
+import com.example.ludo.ui.components.GameBackground
+import com.example.ludo.ui.components.GameButton
+import com.example.ludo.ui.components.GameButtonStyle
+import com.example.ludo.ui.components.GlassCard
+import com.example.ludo.ui.components.PlayerAvatar
+import com.example.ludo.ui.components.TurnedPawn
 import com.example.ui.theme.AccentPrimary
 import com.example.ui.theme.BorderHairline
+import com.example.ui.theme.GoldHighlight
+import com.example.ui.theme.GoldRimGradientColors
 import com.example.ui.theme.StarGold
-import com.example.ui.theme.SurfaceBackground
 import com.example.ui.theme.SurfaceElevated
-import com.example.ui.theme.SurfacePanel
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.Typography
 
+/**
+ * Production Victory Screen:
+ * - Dynamic confetti celebration
+ * - 3D Trophy and Winner crown
+ * - Detailed standings breakdown with player colors
+ * - Match statistics (Total turns, sixes rolled, captures)
+ * - Rematch & Main Menu action buttons
+ */
 @Composable
 fun VictoryScreen(
     gameState: GameState,
@@ -56,147 +70,135 @@ fun VictoryScreen(
     val winner = gameState.winner ?: gameState.players.first()
     val scrollState = rememberScrollState()
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(SurfaceBackground)
-            .testTag("victory_screen")
-    ) {
-        // Confetti celebration particles
-        ConfettiEffect()
-
-        Column(
+    GameBackground {
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(scrollState)
-                .padding(horizontal = 24.dp, vertical = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+                .testTag("victory_screen")
         ) {
+            ConfettiEffect()
+
             Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 20.dp, vertical = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(top = 16.dp)
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // Gold Trophy Badge
-                Box(
-                    modifier = Modifier
-                        .size(88.dp)
-                        .clip(CircleShape)
-                        .background(SurfaceElevated)
-                        .border(2.dp, StarGold, CircleShape),
-                    contentAlignment = Alignment.Center
+                // Header / Trophy
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(top = 16.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.EmojiEvents,
-                        contentDescription = "Trophy",
-                        tint = StarGold,
-                        modifier = Modifier.size(48.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(92.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF0D1D38))
+                            .border(2.dp, Brush.linearGradient(GoldRimGradientColors), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.EmojiEvents,
+                            contentDescription = "Trophy",
+                            tint = StarGold,
+                            modifier = Modifier.size(52.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    Text(
+                        text = "VICTORY!",
+                        style = Typography.displayLarge.copy(
+                            fontSize = 34.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 2.0.sp
+                        ),
+                        color = AccentPrimary
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = "${winner.name.uppercase()} WINS THE TOURNAMENT",
+                        style = Typography.titleMedium.copy(
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = Color.White
+                    )
+
+                    Text(
+                        text = "First to guide all 4 tokens into the central home goal",
+                        style = Typography.bodyMedium.copy(fontSize = 12.sp),
+                        color = TextSecondary
                     )
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                Text(
-                    text = "${winner.name} Wins!",
-                    style = Typography.displayMedium,
-                    color = TextPrimary,
-                    fontWeight = FontWeight.SemiBold
-                )
+                // Standings & Stats Card
+                GlassCard(modifier = Modifier.fillMaxWidth(), isActive = true) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = "FINAL STANDINGS",
+                            style = Typography.labelLarge.copy(letterSpacing = 1.0.sp),
+                            color = AccentPrimary
+                        )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                        val rankedPlayers = if (gameState.rankings.isNotEmpty()) {
+                            gameState.rankings + gameState.players.filter { !gameState.rankings.contains(it) }
+                        } else {
+                            gameState.players
+                        }
 
-                Text(
-                    text = "First to bring all 4 tokens home",
-                    style = Typography.bodyMedium,
-                    color = TextSecondary
-                )
-            }
+                        rankedPlayers.forEachIndexed { index, player ->
+                            StandingRow(rank = index + 1, player = player)
+                        }
 
-            Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
 
-            // Match Standings & Statistics Card
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(SurfacePanel)
-                    .border(1.dp, BorderHairline, RoundedCornerShape(10.dp))
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "Match Summary",
-                    style = Typography.labelLarge,
-                    color = TextSecondary
-                )
-
-                // Standings list
-                val rankedPlayers = if (gameState.rankings.isNotEmpty()) {
-                    gameState.rankings + gameState.players.filter { !gameState.rankings.contains(it) }
-                } else {
-                    gameState.players
+                        // Stats Summary Row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF091222))
+                                .border(1.dp, BorderHairline, RoundedCornerShape(8.dp))
+                                .padding(vertical = 10.dp, horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceAround
+                        ) {
+                            StatSummaryItem(label = "TURNS", value = gameState.turnCount.toString())
+                            StatSummaryItem(label = "SIXES", value = gameState.players.sumOf { it.sixesCount }.toString())
+                            StatSummaryItem(label = "CAPTURES", value = gameState.players.sumOf { it.capturesCount }.toString())
+                        }
+                    }
                 }
 
-                rankedPlayers.forEachIndexed { index, player ->
-                    StandingRow(rank = index + 1, player = player)
-                }
+                Spacer(modifier = Modifier.height(24.dp))
 
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // Stats breakdown
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(SurfaceElevated)
-                        .padding(vertical = 10.dp, horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceAround
+                // Action Buttons
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    StatItem(label = "Total Turns", value = gameState.turnCount.toString())
-                    StatItem(label = "Sixes Rolled", value = gameState.players.sumOf { it.sixesCount }.toString())
-                    StatItem(label = "Captures", value = gameState.players.sumOf { it.capturesCount }.toString())
-                }
-            }
+                    GameButton(
+                        text = "Play Again",
+                        onClick = onPlayAgainClick,
+                        style = GameButtonStyle.PRIMARY_GOLD,
+                        icon = Icons.Default.PlayArrow,
+                        testTag = "play_again_button"
+                    )
 
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Actions
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Button(
-                    onClick = onPlayAgainClick,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = AccentPrimary,
-                        contentColor = SurfaceBackground
-                    ),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp)
-                        .testTag("play_again_button")
-                ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Play Again", style = Typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                }
-
-                OutlinedButton(
-                    onClick = onMainMenuClick,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(
-                        brush = androidx.compose.ui.graphics.SolidColor(BorderHairline)
-                    ),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .testTag("victory_main_menu_button")
-                ) {
-                    Icon(Icons.Outlined.Home, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Main Menu", style = Typography.bodyLarge, fontWeight = FontWeight.Medium)
+                    GameButton(
+                        text = "Main Menu",
+                        onClick = onMainMenuClick,
+                        style = GameButtonStyle.SECONDARY_GLASS,
+                        icon = Icons.Outlined.Home,
+                        testTag = "victory_main_menu_button"
+                    )
                 }
             }
         }
@@ -208,47 +210,67 @@ private fun StandingRow(rank: Int, player: Player) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(SurfaceElevated)
+            .border(1.dp, if (rank == 1) StarGold.copy(alpha = 0.5f) else BorderHairline, RoundedCornerShape(8.dp))
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "#$rank",
-                style = Typography.labelLarge,
+                text = if (rank == 1) "👑 #1" else "#$rank",
+                style = Typography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                ),
                 color = if (rank == 1) StarGold else TextMuted,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.width(28.dp)
+                modifier = Modifier.width(42.dp)
             )
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .clip(CircleShape)
-                    .background(player.color.primaryColor)
+
+            TurnedPawn(
+                color = player.color,
+                isMovable = false,
+                isFinished = false,
+                size = 24.dp
             )
+
             Spacer(modifier = Modifier.width(10.dp))
+
             Text(
                 text = player.name,
-                style = Typography.bodyLarge,
-                color = TextPrimary,
-                fontWeight = if (rank == 1) FontWeight.SemiBold else FontWeight.Normal
+                style = Typography.bodyLarge.copy(
+                    fontSize = 14.sp,
+                    fontWeight = if (rank == 1) FontWeight.Bold else FontWeight.Medium
+                ),
+                color = if (rank == 1) Color.White else TextSecondary
             )
         }
 
         Text(
             text = "${player.finishedTokensCount}/4 Home",
-            style = Typography.labelSmall,
-            color = TextSecondary
+            style = Typography.labelSmall.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp
+            ),
+            color = if (rank == 1) AccentPrimary else TextMuted
         )
     }
 }
 
 @Composable
-private fun StatItem(label: String, value: String) {
+private fun StatSummaryItem(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = value, style = Typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.SemiBold)
-        Text(text = label, style = Typography.labelSmall, color = TextMuted)
+        Text(
+            text = value,
+            style = Typography.titleLarge.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold),
+            color = Color.White
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = label,
+            style = Typography.labelSmall.copy(fontSize = 9.sp, letterSpacing = 0.8.sp),
+            color = TextMuted
+        )
     }
 }

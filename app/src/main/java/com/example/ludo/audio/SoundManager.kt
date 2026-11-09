@@ -227,6 +227,41 @@ class SoundManager(private val context: Context) {
         }
     }
 
+    /**
+     * Tactile "pop" sound when picking up/selecting a pawn directly on the board.
+     */
+    fun playPawnPick() {
+        triggerHaptic(12)
+        playPcm {
+            val numSamples = (sampleRate * 0.045).toInt()
+            val samples = ShortArray(numSamples)
+            for (i in 0 until numSamples) {
+                val t = i.toDouble() / sampleRate
+                val progress = i.toDouble() / numSamples
+                val decay = (1.0 - progress) * (1.0 - progress)
+                // Upward frequency swoop 600Hz -> 1100Hz creating a crisp "pop"
+                val freq = 600.0 + (progress * 500.0)
+                val wave = sin(2.0 * PI * freq * t) * decay * 0.70
+                samples[i] = (wave * Short.MAX_VALUE).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+            }
+            samples
+        }
+    }
+
+    fun playTurnStart() {
+        playPcm {
+            val numSamples = (sampleRate * 0.08).toInt()
+            val samples = ShortArray(numSamples)
+            for (i in 0 until numSamples) {
+                val t = i.toDouble() / sampleRate
+                val decay = 1.0 - (i.toDouble() / numSamples)
+                val wave = sin(2.0 * PI * 680.0 * t) * decay * 0.30
+                samples[i] = (wave * Short.MAX_VALUE).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+            }
+            samples
+        }
+    }
+
     fun playDiceRoll() {
         triggerHapticPattern(longArrayOf(0, 20, 35, 20, 30, 25))
         playPcm {

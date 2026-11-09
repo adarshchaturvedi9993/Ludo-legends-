@@ -27,9 +27,11 @@ import com.example.ludo.ui.screens.BotSetupScreen
 import com.example.ludo.ui.screens.ColorSelectionScreen
 import com.example.ludo.ui.screens.GameScreen
 import com.example.ludo.ui.screens.HomeScreen
+import com.example.ludo.ui.screens.HowToPlayScreen
 import com.example.ludo.ui.screens.PlayerCountScreen
 import com.example.ludo.ui.screens.SettingsScreen
 import com.example.ludo.ui.screens.SplashScreen
+import com.example.ludo.ui.screens.StatsScreen
 import com.example.ludo.ui.screens.VictoryScreen
 import com.example.ui.theme.LudoTheme
 import com.example.ui.theme.SurfaceBackground
@@ -42,7 +44,9 @@ enum class Screen {
     BOT_SETUP,
     GAME,
     VICTORY,
-    SETTINGS
+    SETTINGS,
+    STATS,
+    HOW_TO_PLAY
 }
 
 class MainActivity : ComponentActivity() {
@@ -148,7 +152,11 @@ fun LudoAppContent(
                 },
                 onRulesClick = {
                     soundManager.playButtonTap()
-                    currentScreen = Screen.SETTINGS
+                    currentScreen = Screen.HOW_TO_PLAY
+                },
+                onStatsClick = {
+                    soundManager.playButtonTap()
+                    currentScreen = Screen.STATS
                 },
                 onSettingsClick = {
                     soundManager.playButtonTap()
@@ -203,7 +211,7 @@ fun LudoAppContent(
                         gamePreferences.setPlayerName(i, p.name)
                     }
 
-                    // Order players clockwise around the board for natural Pass & Play
+                    // Order players clockwise around the board
                     val boardOrderedPlayers = configuredPlayers.sortedBy { it.color.startIndex }
 
                     val initialState = GameState(
@@ -237,13 +245,11 @@ fun LudoAppContent(
                 },
                 onStartGame = { configuredPlayers ->
                     soundManager.playButtonTap()
-                    // Save human player name
                     val human = configuredPlayers.firstOrNull { !it.isBot }
                     if (human != null) {
                         gamePreferences.setPlayerName(0, human.name)
                     }
 
-                    // Order players clockwise around the board
                     val boardOrderedPlayers = configuredPlayers.sortedBy { it.color.startIndex }
 
                     val initialState = GameState(
@@ -278,6 +284,7 @@ fun LudoAppContent(
             GameScreen(
                 gameState = state,
                 soundManager = soundManager,
+                gamePreferences = gamePreferences,
                 onStateUpdated = { newState ->
                     activeGameState = newState
                     gamePreferences.saveGame(newState)
@@ -374,6 +381,35 @@ fun LudoAppContent(
             SettingsScreen(
                 gamePreferences = gamePreferences,
                 soundManager = soundManager,
+                onBackClick = {
+                    soundManager.playButtonTap()
+                    currentScreen = Screen.HOME
+                }
+            )
+        }
+
+        Screen.STATS -> {
+            BackHandler {
+                soundManager.playButtonTap()
+                currentScreen = Screen.HOME
+            }
+
+            StatsScreen(
+                gamePreferences = gamePreferences,
+                onBackClick = {
+                    soundManager.playButtonTap()
+                    currentScreen = Screen.HOME
+                }
+            )
+        }
+
+        Screen.HOW_TO_PLAY -> {
+            BackHandler {
+                soundManager.playButtonTap()
+                currentScreen = Screen.HOME
+            }
+
+            HowToPlayScreen(
                 onBackClick = {
                     soundManager.playButtonTap()
                     currentScreen = Screen.HOME

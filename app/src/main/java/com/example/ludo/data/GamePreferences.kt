@@ -26,6 +26,26 @@ class GamePreferences(context: Context) {
         get() = prefs.getBoolean(KEY_HAPTICS, true)
         set(value) = prefs.edit().putBoolean(KEY_HAPTICS, value).apply()
 
+    var isAutoMoveSinglePawnEnabled: Boolean
+        get() = prefs.getBoolean(KEY_AUTO_MOVE, true)
+        set(value) = prefs.edit().putBoolean(KEY_AUTO_MOVE, value).apply()
+
+    var isTurnTimerEnabled: Boolean
+        get() = prefs.getBoolean(KEY_TURN_TIMER, true)
+        set(value) = prefs.edit().putBoolean(KEY_TURN_TIMER, value).apply()
+
+    var turnTimerSeconds: Int
+        get() = prefs.getInt(KEY_TURN_TIMER_SECS, 15)
+        set(value) = prefs.edit().putInt(KEY_TURN_TIMER_SECS, value).apply()
+
+    var isColorBlindModeEnabled: Boolean
+        get() = prefs.getBoolean(KEY_COLOR_BLIND, false)
+        set(value) = prefs.edit().putBoolean(KEY_COLOR_BLIND, value).apply()
+
+    var isReduceMotionEnabled: Boolean
+        get() = prefs.getBoolean(KEY_REDUCE_MOTION, false)
+        set(value) = prefs.edit().putBoolean(KEY_REDUCE_MOTION, value).apply()
+
     // Statistics
     var totalMatches: Int
         get() = prefs.getInt(KEY_STATS_MATCHES, 0)
@@ -251,6 +271,11 @@ class GamePreferences(context: Context) {
         private const val KEY_SOUND = "key_sound_enabled"
         private const val KEY_MUSIC = "key_music_enabled"
         private const val KEY_HAPTICS = "key_haptics_enabled"
+        private const val KEY_AUTO_MOVE = "key_auto_move_single"
+        private const val KEY_TURN_TIMER = "key_turn_timer_enabled"
+        private const val KEY_TURN_TIMER_SECS = "key_turn_timer_seconds"
+        private const val KEY_COLOR_BLIND = "key_color_blind_mode"
+        private const val KEY_REDUCE_MOTION = "key_reduce_motion"
         private const val KEY_SAVED_GAME = "key_saved_game_json"
         private const val KEY_STATS_MATCHES = "key_stats_matches"
         private const val KEY_STATS_WINS = "key_stats_wins"
