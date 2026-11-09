@@ -65,6 +65,17 @@ class MainActivity : ComponentActivity() {
         soundManager.isHapticsEnabled = gamePreferences.isHapticsEnabled
         soundManager.startBackgroundMusic()
 
+        try {
+            com.google.firebase.FirebaseApp.initializeApp(this)
+            com.google.firebase.analytics.FirebaseAnalytics.getInstance(this)
+        } catch (_: Exception) {
+        }
+
+        try {
+            com.google.android.gms.ads.MobileAds.initialize(this) {}
+        } catch (_: Exception) {
+        }
+
         setContent {
             LudoTheme {
                 Scaffold(
