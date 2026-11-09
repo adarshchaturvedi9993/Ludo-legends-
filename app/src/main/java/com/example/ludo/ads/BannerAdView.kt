@@ -1,6 +1,5 @@
 package com.example.ludo.ads
 
-import android.content.Context
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border

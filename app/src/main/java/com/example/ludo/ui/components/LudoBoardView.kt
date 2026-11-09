@@ -44,7 +44,6 @@ import androidx.compose.ui.unit.sp
 import com.example.ludo.model.BoardCoordinates
 import com.example.ludo.model.GridCoord
 import com.example.ludo.model.Player
-import com.example.ludo.model.PlayerColor
 import com.example.ludo.model.TokenState
 import com.example.ui.theme.DarkAlternateCell
 import com.example.ui.theme.DarkBoardBackground

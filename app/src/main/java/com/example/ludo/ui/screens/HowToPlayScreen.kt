@@ -35,7 +35,6 @@ import com.example.ui.theme.AccentPrimary
 import com.example.ui.theme.BorderHairline
 import com.example.ui.theme.StarGold
 import com.example.ui.theme.SurfaceElevated
-import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.Typography
 

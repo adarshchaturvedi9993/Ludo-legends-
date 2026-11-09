@@ -63,8 +63,6 @@ import com.example.ludo.ui.components.GameBackground
 import com.example.ludo.ui.components.GameButton
 import com.example.ludo.ui.components.GameButtonStyle
 import com.example.ui.theme.AccentPrimary
-import com.example.ui.theme.BorderActive
-import com.example.ui.theme.BorderHairline
 import com.example.ui.theme.GoldHighlight
 import com.example.ui.theme.GoldRimGradientColors
 import com.example.ui.theme.StarGold
@@ -72,7 +70,6 @@ import com.example.ui.theme.SurfaceBackground
 import com.example.ui.theme.SurfaceElevated
 import com.example.ui.theme.SurfacePanel
 import com.example.ui.theme.TextMuted
-import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.Typography
 

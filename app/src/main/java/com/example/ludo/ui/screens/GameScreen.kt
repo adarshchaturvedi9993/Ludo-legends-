@@ -68,7 +68,6 @@ import com.example.ludo.ui.components.GameButtonStyle
 import com.example.ludo.ui.components.GameDialog
 import com.example.ludo.ui.components.LudoBoardView
 import com.example.ludo.ui.components.PlayerDicePanel
-import com.example.ludo.ui.components.Realistic3DDiceView
 import com.example.ui.theme.AccentPrimary
 import com.example.ui.theme.BorderHairline
 import com.example.ui.theme.GoldHighlight
