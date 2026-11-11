@@ -31,8 +31,8 @@ import androidx.compose.material.icons.outlined.Stars
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -45,7 +45,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -70,9 +69,8 @@ import com.example.ludo.ui.components.LudoBoardView
 import com.example.ludo.ui.components.PlayerDicePanel
 import com.example.ui.theme.AccentPrimary
 import com.example.ui.theme.BorderHairline
-import com.example.ui.theme.GoldHighlight
-import com.example.ui.theme.GoldRimGradientColors
 import com.example.ui.theme.StarGold
+import com.example.ui.theme.SurfaceCard
 import com.example.ui.theme.SurfaceElevated
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
@@ -86,14 +84,13 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * Production Ludo Game Screen:
- * - 100% Direct Board Pawn Tapping (No bottom sheet popup).
- * - Movable pawns display glow ring, scale pulse, bouncing arrow, and destination ghost preview.
- * - Single pawn auto-move (400ms delay).
- * - Top header with pause, crown turn pill, sound toggle.
- * - 4 individual corner player dice panels with 60% dimming for inactive players.
- * - Turn timer with countdown ring and auto-play on timeout.
- * - Dominant bottom action bar.
+ * World-Class Ludo Game Screen:
+ * - Direct board pawn tapping with zero annoying popups.
+ * - Clean top header with pause, team-colored turn pill (no emoji slop), sound toggle.
+ * - 4 individual corner player panels with 55% dimming for inactive players.
+ * - Clear target tile previews with dotted paths.
+ * - Turn timer with countdown ring and automated play on timeout.
+ * - Single-pawn auto-move.
  */
 @Composable
 fun GameScreen(
@@ -111,6 +108,16 @@ fun GameScreen(
     var isMusicOn by remember { mutableStateOf(soundManager.isMusicEnabled) }
     val coroutineScope = rememberCoroutineScope()
     val currentPlayer = gameState.currentPlayer
+
+    // Never play background music during active game match
+    DisposableEffect(Unit) {
+        soundManager.pauseMusic()
+        onDispose {
+            if (gamePreferences?.isMusicEnabled == true) {
+                soundManager.resumeMusic()
+            }
+        }
+    }
 
     val isAutoMoveEnabled = gamePreferences?.isAutoMoveSinglePawnEnabled ?: true
     val isTurnTimerEnabled = gamePreferences?.isTurnTimerEnabled ?: true
@@ -219,7 +226,7 @@ fun GameScreen(
     // Auto-advance turn if no moves available
     LaunchedEffect(gameState.isWaitingForRoll, gameState.movableTokenIds, gameState.isDiceRolling, isHopAnimating) {
         if (!gameState.isWaitingForRoll && !gameState.isDiceRolling && gameState.movableTokenIds.isEmpty() && !isHopAnimating) {
-            delay(1100)
+            delay(1000)
             val nextIndex = LudoGameEngine.getNextActivePlayerIndex(gameState.players, gameState.currentPlayerIndex)
             val nextState = gameState.copy(
                 currentPlayerIndex = nextIndex,
@@ -232,7 +239,7 @@ fun GameScreen(
         }
     }
 
-    // Auto-move single eligible pawn after 400ms (Setting: "Auto-move single pawn")
+    // Auto-move single eligible pawn after 400ms
     LaunchedEffect(gameState.isWaitingForRoll, gameState.movableTokenIds, gameState.isDiceRolling, isHopAnimating, currentPlayer.isBot, isAutoMoveEnabled) {
         if (isAutoMoveEnabled && !currentPlayer.isBot && !gameState.isWaitingForRoll && !gameState.isDiceRolling &&
             gameState.movableTokenIds.size == 1 && !isHopAnimating
@@ -247,7 +254,7 @@ fun GameScreen(
     LaunchedEffect(currentPlayer.isBot, gameState.isWaitingForRoll, gameState.isDiceRolling, isHopAnimating, gameState.isGameOver) {
         if (currentPlayer.isBot && !gameState.isGameOver && !isHopAnimating) {
             if (gameState.isWaitingForRoll && !gameState.isDiceRolling) {
-                delay(450)
+                delay(400)
                 handleRoll(
                     currentState = gameState,
                     soundManager = soundManager,
@@ -256,7 +263,7 @@ fun GameScreen(
                     onRollStarted = { rolled -> playerLastDiceValue[currentPlayer.id] = rolled }
                 )
             } else if (!gameState.isWaitingForRoll && !gameState.isDiceRolling && gameState.movableTokenIds.isNotEmpty()) {
-                delay(450)
+                delay(400)
                 val chosenTokenId = LudoBotAI.chooseMove(currentPlayer, gameState, gameState.movableTokenIds)
                 startHopAndMove(
                     tokenId = chosenTokenId,
@@ -279,7 +286,7 @@ fun GameScreen(
     LaunchedEffect(gameState.isGameOver) {
         if (gameState.isGameOver) {
             soundManager.playVictory()
-            delay(600)
+            delay(500)
             onGameFinished(gameState)
         }
     }
@@ -288,177 +295,196 @@ fun GameScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 14.dp, vertical = 6.dp)
+                .padding(horizontal = 12.dp, vertical = 6.dp)
                 .testTag("game_screen")
         ) {
             Column(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.SpaceBetween,
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier.fillMaxSize()
             ) {
-                // 1. Top Navigation Bar: Pause Button, Crown Turn Pill, Sound Toggle
-                Row(
+                // Playable HUD and Board Area (takes remaining screen space above the sticked banner)
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp, bottom = 2.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    verticalArrangement = Arrangement.SpaceBetween,
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    IconButton(
-                        onClick = {
-                            soundManager.playButtonTap()
-                            showPauseDialog = true
-                        },
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF0D1D38))
-                            .border(1.5.dp, Brush.linearGradient(GoldRimGradientColors), CircleShape)
-                            .testTag("pause_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Pause,
-                            contentDescription = "Pause",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    // Turn indicator pill
+                    // 1. Top HUD: Pause Button, Team-Colored Turn Pill, Sound Toggle
                     Row(
                         modifier = Modifier
-                            .height(40.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Color(0xFF0A1428))
-                            .border(
-                                width = 1.5.dp,
-                                brush = Brush.linearGradient(listOf(GoldHighlight, AccentPrimary)),
-                                shape = RoundedCornerShape(20.dp)
-                            )
-                            .padding(horizontal = 16.dp),
+                            .fillMaxWidth()
+                            .padding(top = 4.dp, bottom = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = "👑", fontSize = 13.sp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "TURN ${gameState.turnCount} • ${currentPlayer.name.uppercase()}",
-                            style = Typography.titleMedium.copy(
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.8.sp
-                            ),
-                            color = AccentPrimary
-                        )
-                        if (currentPlayer.isBot) {
-                            Spacer(modifier = Modifier.width(6.dp))
+                        IconButton(
+                            onClick = {
+                                soundManager.playButtonTap()
+                                showPauseDialog = true
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(SurfaceCard)
+                                .border(1.dp, BorderHairline, CircleShape)
+                                .testTag("pause_button")
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.SmartToy,
-                                contentDescription = "AI",
-                                tint = StarGold,
-                                modifier = Modifier.size(13.dp)
+                                imageVector = Icons.Default.Pause,
+                                contentDescription = "Pause",
+                                tint = TextPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        // Turn indicator pill (Clean, no emoji)
+                        Row(
+                            modifier = Modifier
+                                .height(38.dp)
+                                .clip(RoundedCornerShape(19.dp))
+                                .background(SurfaceCard)
+                                .border(
+                                    width = 1.2.dp,
+                                    color = currentPlayer.color.primaryColor,
+                                    shape = RoundedCornerShape(19.dp)
+                                )
+                                .padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(currentPlayer.color.primaryColor)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "TURN ${gameState.turnCount} • ${currentPlayer.name.uppercase()}",
+                                style = Typography.titleMedium.copy(
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.6.sp
+                                ),
+                                color = TextPrimary
+                            )
+                            if (currentPlayer.isBot) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(
+                                    imageVector = Icons.Default.SmartToy,
+                                    contentDescription = "AI",
+                                    tint = StarGold,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = {
+                                isSoundMuted = !isSoundMuted
+                                soundManager.isSoundEnabled = !isSoundMuted
+                                soundManager.playButtonTap()
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(SurfaceCard)
+                                .border(1.dp, BorderHairline, CircleShape)
+                                .testTag("sound_toggle_button")
+                        ) {
+                            Icon(
+                                imageVector = if (isSoundMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                                contentDescription = "Toggle Sound",
+                                tint = if (isSoundMuted) TextMuted else TextPrimary,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
 
-                    IconButton(
-                        onClick = {
-                            isSoundMuted = !isSoundMuted
-                            soundManager.isSoundEnabled = !isSoundMuted
-                            soundManager.playButtonTap()
-                        },
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF0D1D38))
-                            .border(1.5.dp, Brush.linearGradient(GoldRimGradientColors), CircleShape)
-                            .testTag("sound_toggle_button")
-                    ) {
-                        Icon(
-                            imageVector = if (isSoundMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
-                            contentDescription = "Toggle Sound",
-                            tint = if (isSoundMuted) TextMuted else Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                    // 2. Top Player Panels with individual dice
+                    PlayerDiceRow(
+                        players = topPlayers,
+                        currentPlayer = currentPlayer,
+                        gameState = gameState,
+                        playerLastDiceValue = playerLastDiceValue,
+                        turnTimerProgress = timerProgress,
+                        isHopAnimating = isHopAnimating,
+                        isTop = true,
+                        onBounce = {},
+                        onRollClick = { player ->
+                            if (player.id == currentPlayer.id) {
+                                handleRoll(
+                                    currentState = gameState,
+                                    soundManager = soundManager,
+                                    coroutineScope = coroutineScope,
+                                    onStateUpdated = onStateUpdated,
+                                    onRollStarted = { rolled -> playerLastDiceValue[player.id] = rolled }
+                                )
+                            }
+                        }
+                    )
+
+                    // 3. Central Ludo Board (DIRECT BOARD TAP WITH NO POPUP)
+                    val activeTheme = com.example.ludo.model.BoardThemeCatalog.getThemeById(gamePreferences?.selectedBoardThemeId)
+                    LudoBoardView(
+                        players = gameState.players,
+                        currentPlayer = currentPlayer,
+                        movableTokenIds = if (isHopAnimating || currentPlayer.isBot) emptySet() else gameState.movableTokenIds,
+                        diceValue = gameState.diceValue,
+                        onTokenClick = onSelectPawn,
+                        animatingTokenId = animatingTokenId,
+                        animatingTokenCoord = animatingTokenCoord,
+                        animatingHopElevationPx = animatingHopElevationPx,
+                        showColorBlindSymbol = isColorBlindEnabled,
+                        boardTheme = activeTheme,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+
+                    // 4. Bottom Player Panels with individual dice
+                    PlayerDiceRow(
+                        players = bottomPlayers,
+                        currentPlayer = currentPlayer,
+                        gameState = gameState,
+                        playerLastDiceValue = playerLastDiceValue,
+                        turnTimerProgress = timerProgress,
+                        isHopAnimating = isHopAnimating,
+                        isTop = false,
+                        onBounce = {},
+                        onRollClick = { player ->
+                            if (player.id == currentPlayer.id) {
+                                handleRoll(
+                                    currentState = gameState,
+                                    soundManager = soundManager,
+                                    coroutineScope = coroutineScope,
+                                    onStateUpdated = onStateUpdated,
+                                    onRollStarted = { rolled -> playerLastDiceValue[player.id] = rolled }
+                                )
+                            }
+                        }
+                    )
                 }
 
-                // 2. Top Player Panels with individual dice
-                PlayerDiceRow(
-                    players = topPlayers,
-                    currentPlayer = currentPlayer,
-                    gameState = gameState,
-                    playerLastDiceValue = playerLastDiceValue,
-                    turnTimerProgress = timerProgress,
-                    isHopAnimating = isHopAnimating,
-                    isTop = true,
-                    onBounce = { soundManager.playDiceRoll() },
-                    onRollClick = { player ->
-                        if (player.id == currentPlayer.id) {
-                            handleRoll(
-                                currentState = gameState,
-                                soundManager = soundManager,
-                                coroutineScope = coroutineScope,
-                                onStateUpdated = onStateUpdated,
-                                onRollStarted = { rolled -> playerLastDiceValue[player.id] = rolled }
-                            )
-                        }
-                    }
-                )
-
-                // 3. Central Ludo Board (DIRECT BOARD TAP WITH NO POPUP)
-                LudoBoardView(
-                    players = gameState.players,
-                    currentPlayer = currentPlayer,
-                    movableTokenIds = if (isHopAnimating || currentPlayer.isBot) emptySet() else gameState.movableTokenIds,
-                    diceValue = gameState.diceValue,
-                    onTokenClick = onSelectPawn,
-                    animatingTokenId = animatingTokenId,
-                    animatingTokenCoord = animatingTokenCoord,
-                    animatingHopElevationPx = animatingHopElevationPx,
-                    showColorBlindSymbol = isColorBlindEnabled,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-
-                // 4. Bottom Player Panels with individual dice
-                PlayerDiceRow(
-                    players = bottomPlayers,
-                    currentPlayer = currentPlayer,
-                    gameState = gameState,
-                    playerLastDiceValue = playerLastDiceValue,
-                    turnTimerProgress = timerProgress,
-                    isHopAnimating = isHopAnimating,
-                    isTop = false,
-                    onBounce = { soundManager.playDiceRoll() },
-                    onRollClick = { player ->
-                        if (player.id == currentPlayer.id) {
-                            handleRoll(
-                                currentState = gameState,
-                                soundManager = soundManager,
-                                coroutineScope = coroutineScope,
-                                onStateUpdated = onStateUpdated,
-                                onRollStarted = { rolled -> playerLastDiceValue[player.id] = rolled }
-                            )
-                        }
-                    }
-                )
-
-                // 5. Natural Bottom Banner Ad (Seamlessly replaces redundant bottom card)
-                BannerAdView(
+                // 5. Bottom Banner Ad - Sticked firmly to the bottom of the screen
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    placementKey = AdConstants.KEY_BANNER_GAME,
-                    hasCardContainer = true,
-                    cornerRadius = 20.dp,
-                    containerBackground = Color(0xFF080F22),
-                    containerBorderColor = Color(0xFF293B5B)
-                )
+                        .padding(top = 2.dp, bottom = 2.dp),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    BannerAdView(
+                        modifier = Modifier.fillMaxWidth(),
+                        placementKey = AdConstants.KEY_BANNER_GAME,
+                        hasCardContainer = true,
+                        cornerRadius = 14.dp,
+                        containerBackground = SurfaceCard,
+                        containerBorderColor = BorderHairline
+                    )
+                }
             }
 
             // Universal Pause Dialog using GameDialog
             GameDialog(
                 visible = showPauseDialog,
-                title = "Game Paused",
+                title = "Match Paused",
                 onDismissRequest = { showPauseDialog = false },
                 buttons = {
                     Column(
@@ -477,8 +503,8 @@ fun GameScreen(
                         if (onWatchRewardAd != null && com.example.ludo.ads.RemoteConfigManager.isRewardedRerollEnabled()) {
                             val currentRerolls = gamePreferences?.luckyRerollsCount ?: 0
                             GameButton(
-                                text = "Claim +1 Lucky Reroll",
-                                subtitle = "Watch short video ($currentRerolls in bag, +500 XP)",
+                                text = "Claim Lucky Reroll Perk",
+                                subtitle = "Watch short video ($currentRerolls available, +500 XP)",
                                 onClick = {
                                     soundManager.playButtonTap()
                                     onWatchRewardAd()
@@ -499,7 +525,7 @@ fun GameScreen(
                             icon = Icons.Outlined.Refresh
                         )
                         GameButton(
-                            text = "Main Menu",
+                            text = "Exit to Main Menu",
                             onClick = {
                                 soundManager.playButtonTap()
                                 showPauseDialog = false
@@ -512,11 +538,12 @@ fun GameScreen(
                 }
             ) {
                 Text(
-                    text = "Match progress is preserved automatically.",
+                    text = "Your match progress is saved automatically and can be resumed at any time.",
                     style = Typography.bodyMedium,
-                    color = TextMuted
+                    color = TextSecondary,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 // Quick Audio Toggles
                 Row(
@@ -526,7 +553,7 @@ fun GameScreen(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(42.dp)
+                            .height(40.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(SurfaceElevated)
                             .border(1.dp, BorderHairline, RoundedCornerShape(8.dp))
@@ -547,7 +574,7 @@ fun GameScreen(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = if (isSoundMuted) "SFX Off" else "SFX On",
-                                style = Typography.labelSmall,
+                                style = Typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                                 color = TextPrimary
                             )
                         }
@@ -556,7 +583,7 @@ fun GameScreen(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(42.dp)
+                            .height(40.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(SurfaceElevated)
                             .border(1.dp, BorderHairline, RoundedCornerShape(8.dp))
@@ -577,7 +604,7 @@ fun GameScreen(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = if (isMusicOn) "Music On" else "Music Off",
-                                style = Typography.labelSmall,
+                                style = Typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                                 color = TextPrimary
                             )
                         }
@@ -664,7 +691,7 @@ private fun handleRoll(
     onStateUpdated(rollingState)
 
     coroutineScope.launch {
-        delay(540)
+        delay(520)
 
         // 3 consecutive sixes penalty
         if (consecutiveSixes >= 3) {
@@ -691,7 +718,7 @@ private fun handleRoll(
 
         val status = when {
             movableIds.isEmpty() -> "${currPlayer.name} rolled $rolledValue. No valid moves."
-            movableIds.size > 1 -> "Tap a glowing pawn"
+            movableIds.size > 1 -> "Tap a highlighted pawn"
             rolledValue == 6 -> "${currPlayer.name} rolled 6! Extra turn!"
             else -> "${currPlayer.name} rolled $rolledValue."
         }
@@ -742,13 +769,13 @@ private fun startHopAndMove(
             val startCoord = hopPath[i - 1]
             val endCoord = hopPath[i]
 
-            val frames = 8
+            val frames = 7
             val frameDelay = 18L
             for (f in 1..frames) {
                 val t = f.toFloat() / frames
                 val curRow = startCoord.row + (endCoord.row - startCoord.row) * t
                 val curCol = startCoord.col + (endCoord.col - startCoord.col) * t
-                val elevation = 22f * sin(PI.toFloat() * t)
+                val elevation = 20f * sin(PI.toFloat() * t)
 
                 setAnimatingToken(tokenId, GridCoord(curRow, curCol), elevation)
                 delay(frameDelay)

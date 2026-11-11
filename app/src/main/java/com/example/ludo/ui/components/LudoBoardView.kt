@@ -42,6 +42,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ludo.model.BoardCoordinates
+import com.example.ludo.model.BoardTheme
+import com.example.ludo.model.BoardThemeCatalog
 import com.example.ludo.model.GridCoord
 import com.example.ludo.model.Player
 import com.example.ludo.model.TokenState
@@ -74,6 +76,7 @@ import kotlin.math.sin
  * - Soft destination-tile preview: ghost pawn + highlighted target cell + dotted path.
  * - 48dp minimum touch target for accessibility and error-free pawn tapping.
  * - Layered gradients, safe stars, and central brass star victory hub.
+ * - Dynamic Board Theme & Custom Pawn Colors support.
  */
 @Composable
 fun LudoBoardView(
@@ -86,26 +89,27 @@ fun LudoBoardView(
     animatingTokenId: Int? = null,
     animatingTokenCoord: GridCoord? = null,
     animatingHopElevationPx: Float = 0f,
-    showColorBlindSymbol: Boolean = false
+    showColorBlindSymbol: Boolean = false,
+    boardTheme: BoardTheme = BoardThemeCatalog.THEME_ROYAL_NAVY
 ) {
     BoxWithConstraints(
         modifier = modifier
             .aspectRatio(1f)
             .clip(RoundedCornerShape(16.dp))
-            .background(DarkBoardBackground)
+            .background(boardTheme.boardBackground)
             .border(
-                width = 3.dp,
-                brush = Brush.linearGradient(GoldRimGradientColors),
-                shape = RoundedCornerShape(16.dp)
+                width = 2.dp,
+                color = boardTheme.gridBorder,
+                shape = RoundedCornerShape(14.dp)
             )
             .testTag("ludo_board_view")
     ) {
         val boardSizePx = constraints.maxWidth.toFloat()
         val cellSizePx = boardSizePx / BoardCoordinates.GRID_SIZE
 
-        // 1. Draw Static Dark Board Geometry
+        // 1. Draw Static Dark Board Geometry with selected theme
         Canvas(modifier = Modifier.fillMaxSize()) {
-            drawDarkLudoBoard(cellSizePx)
+            drawDarkLudoBoard(cellSizePx, boardTheme)
         }
 
         // 2. Compute destination tile previews and dotted paths for movable pawns
@@ -174,6 +178,7 @@ fun LudoBoardView(
                 val pawnSizePx = cellSizePx * 0.88f
                 val pawnSizeDp = with(density) { pawnSizePx.toDp() }
 
+                val targetPlayer = players.find { it.tokens.contains(token) } ?: currentPlayer
                 Box(
                     modifier = Modifier
                         .offset {
@@ -190,7 +195,10 @@ fun LudoBoardView(
                         isMovable = false,
                         isFinished = false,
                         size = pawnSizeDp,
-                        isGhost = true
+                        isGhost = true,
+                        customPrimaryColor = targetPlayer.effectivePrimaryColor,
+                        customAccentColor = targetPlayer.effectiveAccentColor,
+                        customDarkShade = targetPlayer.effectiveDarkShade
                     )
                 }
             }
@@ -285,7 +293,10 @@ fun LudoBoardView(
                             isFinished = token.isFinished,
                             size = pawnSizeDp,
                             hopElevationPx = hopElevation,
-                            showColorBlindSymbol = showColorBlindSymbol
+                            showColorBlindSymbol = showColorBlindSymbol,
+                            customPrimaryColor = player.effectivePrimaryColor,
+                            customAccentColor = player.effectiveAccentColor,
+                            customDarkShade = player.effectiveDarkShade
                         )
                     }
 
@@ -320,15 +331,15 @@ fun LudoBoardView(
 /**
  * Draws the authentic dark Ludo board geometry with high visual fidelity.
  */
-private fun DrawScope.drawDarkLudoBoard(cell: Float) {
+private fun DrawScope.drawDarkLudoBoard(cell: Float, theme: BoardTheme) {
     val hairline = 1.dp.toPx()
-    val gridBorderColor = DarkGridBorder
+    val gridBorderColor = theme.gridBorder
 
     // 1. Draw Corner Yards (6x6 cells)
-    drawDarkYard(0f, 0f, cell * 6, cell, LudoRed, LudoRedHomeSurface, BoardCoordinates.RED_YARD_SLOTS)
-    drawDarkYard(cell * 9, 0f, cell * 6, cell, LudoGreen, LudoGreenHomeSurface, BoardCoordinates.GREEN_YARD_SLOTS)
-    drawDarkYard(cell * 9, cell * 9, cell * 6, cell, LudoYellow, LudoYellowHomeSurface, BoardCoordinates.YELLOW_YARD_SLOTS)
-    drawDarkYard(0f, cell * 9, cell * 6, cell, LudoBlue, LudoBlueHomeSurface, BoardCoordinates.BLUE_YARD_SLOTS)
+    drawDarkYard(0f, 0f, cell * 6, cell, LudoRed, theme.yardSurfaceRed, BoardCoordinates.RED_YARD_SLOTS, theme)
+    drawDarkYard(cell * 9, 0f, cell * 6, cell, LudoGreen, theme.yardSurfaceGreen, BoardCoordinates.GREEN_YARD_SLOTS, theme)
+    drawDarkYard(cell * 9, cell * 9, cell * 6, cell, LudoYellow, theme.yardSurfaceYellow, BoardCoordinates.YELLOW_YARD_SLOTS, theme)
+    drawDarkYard(0f, cell * 9, cell * 6, cell, LudoBlue, theme.yardSurfaceBlue, BoardCoordinates.BLUE_YARD_SLOTS, theme)
 
     // 2. Draw 52 Perimeter Track Cells
     val trackIndices = BoardCoordinates.TRACK_TILES
@@ -336,7 +347,7 @@ private fun DrawScope.drawDarkLudoBoard(cell: Float) {
         val coord = trackIndices[i]
         val x = coord.col * cell
         val y = coord.row * cell
-        val cellColor = if (i % 2 == 0) DarkGridCell else DarkAlternateCell
+        val cellColor = if (i % 2 == 0) theme.gridCell else theme.alternateCell
 
         drawRect(cellColor, Offset(x, y), Size(cell, cell))
         drawRect(gridBorderColor, Offset(x, y), Size(cell, cell), style = Stroke(width = hairline))
@@ -364,9 +375,9 @@ private fun DrawScope.drawDarkLudoBoard(cell: Float) {
         val x = coord.col * cell
         val y = coord.row * cell
 
-        drawRect(DarkAlternateCell, Offset(x, y), Size(cell, cell))
+        drawRect(theme.alternateCell, Offset(x, y), Size(cell, cell))
         drawRect(gridBorderColor, Offset(x, y), Size(cell, cell), style = Stroke(width = hairline))
-        drawBoardStar((coord.col + 0.5f) * cell, (coord.row + 0.5f) * cell, cell * 0.34f, StarGold)
+        drawBoardStar((coord.col + 0.5f) * cell, (coord.row + 0.5f) * cell, cell * 0.34f, theme.starColor)
     }
 
     // 5. Draw Solid Colored Home Run Corridors (5 cells each)
@@ -392,7 +403,7 @@ private fun DrawScope.drawDarkLudoBoard(cell: Float) {
     val goalTop = 6f * cell
     val goalBottom = 9f * cell
 
-    drawRect(DarkBoardBackground, Offset(goalLeft, goalTop), Size(cell * 3, cell * 3))
+    drawRect(theme.boardBackground, Offset(goalLeft, goalTop), Size(cell * 3, cell * 3))
 
     // Red triangle
     val redPath = Path().apply {
@@ -424,7 +435,7 @@ private fun DrawScope.drawDarkLudoBoard(cell: Float) {
     drawRect(gridBorderColor, Offset(goalLeft, goalTop), Size(cell * 3, cell * 3), style = Stroke(width = centerStroke))
 
     // Center Gold Star Hub Emblem
-    drawCenterVictoryEmblem(cx, cy, cell * 0.48f)
+    drawCenterVictoryEmblem(cx, cy, cell * 0.48f, theme)
 }
 
 private fun DrawScope.drawDarkYard(
@@ -434,7 +445,8 @@ private fun DrawScope.drawDarkYard(
     cell: Float,
     playerColor: Color,
     surfaceTint: Color,
-    slots: List<GridCoord>
+    slots: List<GridCoord>,
+    theme: BoardTheme
 ) {
     val hairline = 1.dp.toPx()
 
@@ -459,7 +471,7 @@ private fun DrawScope.drawDarkYard(
 
     drawRoundRect(
         brush = Brush.verticalGradient(
-            colors = listOf(DarkGridCell, Color(0xFF141F33)),
+            colors = listOf(theme.gridCell, theme.alternateCell),
             startY = innerCardTop,
             endY = innerCardTop + innerSize
         ),
@@ -504,9 +516,9 @@ private fun DrawScope.drawBoardStar(centerX: Float, centerY: Float, radius: Floa
     drawPath(path, Color.Black.copy(alpha = 0.35f), style = Stroke(width = 0.8.dp.toPx()))
 }
 
-private fun DrawScope.drawCenterVictoryEmblem(cx: Float, cy: Float, radius: Float) {
-    drawCircle(Color(0xFF101A2C), radius, Offset(cx, cy))
-    drawCircle(StarGold, radius, Offset(cx, cy), style = Stroke(width = 1.5.dp.toPx()))
+private fun DrawScope.drawCenterVictoryEmblem(cx: Float, cy: Float, radius: Float, theme: BoardTheme) {
+    drawCircle(theme.boardBackground, radius, Offset(cx, cy))
+    drawCircle(theme.starColor, radius, Offset(cx, cy), style = Stroke(width = 1.5.dp.toPx()))
 
     val path = Path()
     val points = 8
@@ -519,6 +531,11 @@ private fun DrawScope.drawCenterVictoryEmblem(cx: Float, cy: Float, radius: Floa
         if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
     }
     path.close()
-    drawPath(path, StarGold, style = Fill)
+    val starBrush = Brush.radialGradient(
+        colors = theme.centerStarGradient,
+        center = Offset(cx, cy),
+        radius = radius
+    )
+    drawPath(path, starBrush, style = Fill)
     drawCircle(Color.White.copy(alpha = 0.9f), radius * 0.16f, Offset(cx, cy))
 }

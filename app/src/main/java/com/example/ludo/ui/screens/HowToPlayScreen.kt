@@ -27,14 +27,16 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ludo.ads.BannerAdView
 import com.example.ludo.ui.components.AppFooter
 import com.example.ludo.ui.components.GameBackground
 import com.example.ludo.ui.components.GameTopBar
-import com.example.ludo.ui.components.GlassCard
 import com.example.ui.theme.AccentPrimary
 import com.example.ui.theme.BorderHairline
 import com.example.ui.theme.StarGold
+import com.example.ui.theme.SurfaceCard
 import com.example.ui.theme.SurfaceElevated
+import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.Typography
 
@@ -50,7 +52,7 @@ fun HowToPlayScreen(
                 .testTag("how_to_play_screen")
         ) {
             GameTopBar(
-                title = "Rules & How To Play",
+                title = "Rules of Ludo",
                 onBackClick = onBackClick
             )
 
@@ -58,28 +60,28 @@ fun HowToPlayScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                    .padding(vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 RuleSectionCard(
                     number = "1",
                     title = "Leaving the Yard",
                     badge = "ROLL 6",
-                    description = "To move a pawn from your corner yard onto the starting square, you must roll a 6. Rolling a 6 also awards an immediate extra roll."
+                    description = "To move a pawn from your corner yard onto the starting track tile, you must roll a 6. Rolling a 6 also awards an immediate extra turn."
                 )
 
                 RuleSectionCard(
                     number = "2",
                     title = "Capturing Opponents",
                     badge = "BONUS TURN",
-                    description = "If your pawn lands on the exact track tile occupied by an opponent's pawn, the opponent's pawn is captured and sent back to their yard. You earn an immediate bonus turn!"
+                    description = "If your pawn lands on the exact track tile occupied by an opponent's pawn, the opponent's pawn is captured and sent back to their yard. You earn an immediate bonus roll!"
                 )
 
                 RuleSectionCard(
                     number = "3",
                     title = "Safe Star Zones",
                     badge = "PROTECTED",
-                    description = "There are 8 designated Safe Star tiles on the perimeter track (marked with gold and white stars). Pawns standing on a safe tile can never be captured."
+                    description = "There are 8 designated Safe Star tiles on the perimeter track (marked with gold and white stars). Pawns standing on a safe tile cannot be captured."
                 )
 
                 RuleSectionCard(
@@ -100,21 +102,21 @@ fun HowToPlayScreen(
                     number = "6",
                     title = "Pawn Selection & Auto-Move",
                     badge = "DIRECT TAP",
-                    description = "Tap glowing pawns directly on the board to move them. If only one pawn can move legally, it will move automatically for rapid play."
+                    description = "Tap highlighted pawns directly on the board to move them. If only one pawn can move legally, it will move automatically for rapid play."
                 )
 
-                com.example.ludo.ads.BannerAdView(
+                BannerAdView(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp, bottom = 4.dp),
+                        .padding(top = 4.dp, bottom = 2.dp),
                     placementKey = com.example.ludo.ads.AdConstants.KEY_BANNER_HOW_TO_PLAY,
                     hasCardContainer = true,
                     cornerRadius = 14.dp,
-                    containerBackground = androidx.compose.ui.graphics.Color(0xFF0D1D38),
-                    containerBorderColor = androidx.compose.ui.graphics.Color(0xFF293B5B)
+                    containerBackground = SurfaceCard,
+                    containerBorderColor = BorderHairline
                 )
 
-                AppFooter(modifier = Modifier.padding(top = 8.dp, bottom = 16.dp))
+                AppFooter(modifier = Modifier.padding(top = 6.dp, bottom = 12.dp))
             }
         }
     }
@@ -127,7 +129,14 @@ private fun RuleSectionCard(
     badge: String,
     description: String
 ) {
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(SurfaceCard)
+            .border(1.dp, BorderHairline, RoundedCornerShape(12.dp))
+            .padding(14.dp)
+    ) {
         Column {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -137,7 +146,7 @@ private fun RuleSectionCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(30.dp)
+                            .size(28.dp)
                             .clip(CircleShape)
                             .background(AccentPrimary.copy(alpha = 0.15f))
                             .border(1.dp, AccentPrimary, CircleShape),
@@ -145,15 +154,15 @@ private fun RuleSectionCard(
                     ) {
                         Text(
                             text = number,
-                            style = Typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            style = Typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp),
                             color = AccentPrimary
                         )
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         text = title,
-                        style = Typography.titleLarge.copy(fontSize = 17.sp, fontWeight = FontWeight.Bold),
-                        color = Color.White
+                        style = Typography.titleMedium.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold),
+                        color = TextPrimary
                     )
                 }
 
@@ -162,21 +171,21 @@ private fun RuleSectionCard(
                         .clip(RoundedCornerShape(6.dp))
                         .background(SurfaceElevated)
                         .border(1.dp, BorderHairline, RoundedCornerShape(6.dp))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
                 ) {
                     Text(
                         text = badge,
-                        style = Typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                        style = Typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
                         color = StarGold
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
                 text = description,
-                style = Typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 19.sp),
+                style = Typography.bodyMedium.copy(fontSize = 12.sp, lineHeight = 18.sp),
                 color = TextSecondary
             )
         }

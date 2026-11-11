@@ -28,7 +28,15 @@ class RewardedAdManager(private val context: Context) {
     val isLoaded: Boolean
         get() = rewardedAd != null
 
-    fun loadAd(onLoaded: (() -> Unit)? = null) {
+    fun loadAd(activityContext: Context? = null, forceReload: Boolean = false, onLoaded: (() -> Unit)? = null) {
+        val ctx = activityContext ?: LudoAds.currentActivity ?: context
+
+        if (forceReload) {
+            rewardedAd = null
+            isLoading = false
+            retryCount = 0
+        }
+
         if (isLoading || rewardedAd != null) {
             if (rewardedAd != null) onLoaded?.invoke()
             return
@@ -46,7 +54,7 @@ class RewardedAdManager(private val context: Context) {
         Log.d(TAG, "[AdMob Request] Rewarded -> AdUnitId: $adUnitId (LiveMode=${RemoteConfigManager.isLiveMode()})")
 
         RewardedAd.load(
-            context,
+            ctx,
             adUnitId,
             request,
             object : RewardedAdLoadCallback() {
@@ -81,7 +89,7 @@ class RewardedAdManager(private val context: Context) {
                         val delayMs = (5000L * (1 shl retryCount)).coerceAtMost(30000L)
                         retryCount++
                         Log.d(TAG, "Scheduling Rewarded retry #$retryCount in ${delayMs / 1000}s")
-                        mainHandler.postDelayed({ loadAd() }, delayMs)
+                        mainHandler.postDelayed({ loadAd(ctx) }, delayMs)
                     }
                 }
             }
@@ -101,7 +109,7 @@ class RewardedAdManager(private val context: Context) {
         val ad = rewardedAd
         if (ad == null) {
             Log.d(TAG, "Rewarded ad is not ready yet. Preloading and continuing.")
-            loadAd()
+            loadAd(activity)
             onAdClosed(false)
             return
         }
@@ -113,7 +121,7 @@ class RewardedAdManager(private val context: Context) {
                 rewardedAd = null
                 Log.d(TAG, "[AdMob Event] Rewarded ad dismissed. Reward earned: $rewardGranted")
                 AdDiagnosticsTracker.recordDismissed("Rewarded")
-                loadAd()
+                loadAd(activity)
                 onAdClosed(rewardGranted)
             }
 
@@ -127,7 +135,7 @@ class RewardedAdManager(private val context: Context) {
                     domain = adError.domain,
                     message = adError.message
                 )
-                loadAd()
+                loadAd(activity)
                 onAdClosed(false)
             }
 

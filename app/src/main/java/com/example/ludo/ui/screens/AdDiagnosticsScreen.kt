@@ -1,6 +1,7 @@
 package com.example.ludo.ui.screens
 
 import android.app.Activity
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,9 +26,12 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.HourglassTop
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -48,11 +52,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ludo.ads.AdDiagnosticsTracker
+import com.example.ludo.ads.BannerAdView
 import com.example.ludo.ads.FormatDiagnostics
 import com.example.ludo.ads.LudoAds
+import com.example.ludo.ads.NativeAdCard
+import com.example.ludo.ads.RemoteConfigManager
 import com.example.ludo.ui.components.GameBackground
-import com.example.ludo.ui.components.GameButton
-import com.example.ludo.ui.components.GameButtonStyle
 import com.example.ludo.ui.components.GlassCard
 import com.example.ui.theme.AccentPrimary
 import com.example.ui.theme.BorderHairline
@@ -66,10 +71,11 @@ import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.Typography
 
 /**
- * Temporary DEBUG-only Ad Diagnostics Screen.
+ * Production-ready Ad Diagnostics & Testing Screen.
  * Displays real-time SDK initialization status, Firebase Remote Config status,
- * TEST/LIVE mode, and loading/loaded/failed status for all 6 ad formats.
- * Includes direct TEST buttons to test loading and showing each ad format.
+ * TEST vs LIVE mode switcher, and loading/loaded/failed status for all 6 ad formats.
+ * Includes direct action buttons to reload ads with Activity context, trigger companion fallbacks,
+ * and test-display every format.
  */
 @Composable
 fun AdDiagnosticsScreen(
@@ -80,7 +86,11 @@ fun AdDiagnosticsScreen(
     val activity = context as? Activity
     val scrollState = rememberScrollState()
 
-    var testActionMessage by remember { mutableStateOf("Tap any button below to test ad loading/display") }
+    var testActionMessage by remember { mutableStateOf("Ready. Tap any action button below to test ad delivery.") }
+    var isReloadingAll by remember { mutableStateOf(false) }
+    var showBannerPreview by remember { mutableStateOf(false) }
+    var showNativePreview by remember { mutableStateOf(false) }
+    var showHelpCard by remember { mutableStateOf(true) }
 
     GameBackground {
         Box(
@@ -123,7 +133,7 @@ fun AdDiagnosticsScreen(
 
                     Spacer(modifier = Modifier.width(14.dp))
 
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 imageVector = Icons.Outlined.BugReport,
@@ -170,32 +180,188 @@ fun AdDiagnosticsScreen(
                             label = "Firebase Remote Config",
                             status = if (diagState.isFirebaseInitialized) "ACTIVE" else "OFFLINE (Local Defaults)",
                             isSuccess = true,
-                            extra = if (diagState.isFirebaseInitialized) "Fetched config" else "Graceful offline fallback"
+                            extra = if (diagState.isFirebaseInitialized) "Remote config synchronized" else "Safe offline fallback active"
                         )
 
                         StatusRow(
                             label = "Ad Engine Mode",
-                            status = if (diagState.isLiveMode) "LIVE (Production)" else "TEST (Official Sample IDs)",
+                            status = if (diagState.isLiveMode) "LIVE (User IDs)" else "TEST (Official Sample IDs)",
                             isSuccess = true,
-                            extra = "Mode: ${diagState.adsMode}"
+                            extra = "Active Mode: ${diagState.adsMode.uppercase()}"
                         )
                     }
                 }
 
-                // Interactive Action Message
+                // Global Control Buttons: "Reload All Formats" & "Mode Switcher"
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Reload All Ads
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(AccentPrimary)
+                            .clickable(enabled = !isReloadingAll) {
+                                isReloadingAll = true
+                                testActionMessage = "Reloading all 4 full-screen formats with staggered delays..."
+                                LudoAds.reloadAllAds(activity) {
+                                    isReloadingAll = false
+                                    testActionMessage = "All ad formats reload cycle finished!"
+                                }
+                            }
+                            .testTag("diag_reload_all_button"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (isReloadingAll) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = Color(0xFF080F22),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Outlined.Refresh,
+                                    contentDescription = null,
+                                    tint = Color(0xFF080F22),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isReloadingAll) "Pacing..." else "Reload All Ads",
+                                style = Typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = Color(0xFF080F22)
+                            )
+                        }
+                    }
+
+                    // Mode Switcher (TEST <-> LIVE)
+                    val isLive = diagState.isLiveMode
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(SurfaceElevated)
+                            .border(1.dp, if (isLive) Color(0xFFFBBF24) else Color(0xFF818CF8), RoundedCornerShape(10.dp))
+                            .clickable {
+                                val nextMode = !isLive
+                                RemoteConfigManager.setDebugMode(nextMode)
+                                testActionMessage = if (nextMode) {
+                                    "Switched to LIVE (Production User IDs). Note: Fresh live IDs require Google AdMob activation."
+                                } else {
+                                    "Switched to TEST (Official Google Sample IDs)."
+                                }
+                            }
+                            .testTag("diag_switch_mode_button"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Outlined.SwapHoriz,
+                                contentDescription = null,
+                                tint = if (isLive) Color(0xFFFBBF24) else Color(0xFF818CF8),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isLive) "Use Test IDs" else "Use Live IDs",
+                                style = Typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+
+                // Interactive Action Message Bar
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
                         .background(Color(0xFF0F203D))
                         .border(1.dp, Color(0xFF1E3A68), RoundedCornerShape(10.dp))
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
                 ) {
-                    Text(
-                        text = "Status: $testActionMessage",
-                        style = Typography.bodySmall.copy(fontSize = 12.sp, fontFamily = FontFamily.Monospace),
-                        color = Color(0xFFE2E8F0)
-                    )
+                    Column {
+                        Text(
+                            text = "STATUS FEED:",
+                            style = Typography.labelSmall.copy(
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AccentPrimary
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = testActionMessage,
+                            style = Typography.bodySmall.copy(fontSize = 12.sp, fontFamily = FontFamily.Monospace),
+                            color = Color(0xFFE2E8F0)
+                        )
+                    }
+                }
+
+                // Error (3) Explanation & Guidance Card
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showHelpCard = !showHelpCard },
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Info,
+                                    contentDescription = null,
+                                    tint = AccentPrimary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Why AdMob Error (3) 'No Fill' Occurs",
+                                    style = Typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = Color.White
+                                )
+                            }
+                            Text(
+                                text = if (showHelpCard) "Hide" else "Show",
+                                style = Typography.labelSmall.copy(color = TextMuted)
+                            )
+                        }
+
+                        AnimatedVisibility(visible = showHelpCard) {
+                            Column(
+                                modifier = Modifier.padding(top = 4.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "• Error 3 means the request reached Google AdMob servers, but no test ad creative was filled.",
+                                    style = Typography.bodySmall.copy(fontSize = 11.sp, color = TextSecondary)
+                                )
+                                Text(
+                                    text = "• Test device registered: Emulator ID is now configured in RequestConfiguration.",
+                                    style = Typography.bodySmall.copy(fontSize = 11.sp, color = TextSecondary)
+                                )
+                                Text(
+                                    text = "• Activity context: Full-screen video ads now pass the Activity context for window metrics.",
+                                    style = Typography.bodySmall.copy(fontSize = 11.sp, color = TextSecondary)
+                                )
+                                Text(
+                                    text = "• Paced loading: Requests are staggered to avoid AdMob's concurrent burst rate-limits.",
+                                    style = Typography.bodySmall.copy(fontSize = 11.sp, color = TextSecondary)
+                                )
+                                Text(
+                                    text = "• Video fallbacks: If the static interstitial or native unit has temporary no-fill, companion video units load automatically.",
+                                    style = Typography.bodySmall.copy(fontSize = 11.sp, color = TextSecondary)
+                                )
+                            }
+                        }
+                    }
                 }
 
                 // Section Header
@@ -211,8 +377,8 @@ fun AdDiagnosticsScreen(
                     diagnostics = diagState.appOpenStatus,
                     onLoadClick = {
                         testActionMessage = "Requesting App Open Test Ad..."
-                        LudoAds.appOpenAdManager.loadAd {
-                            testActionMessage = "App Open Test Ad Loaded!"
+                        LudoAds.appOpenAdManager.loadAd(activity, forceReload = true) {
+                            testActionMessage = "App Open Test Ad successfully LOADED!"
                         }
                     },
                     onShowClick = {
@@ -222,7 +388,7 @@ fun AdDiagnosticsScreen(
                                 testActionMessage = "App Open Test Ad dismissed"
                             }
                         } else {
-                            testActionMessage = "Error: Activity is null"
+                            testActionMessage = "Error: Activity context is not available"
                         }
                     }
                 )
@@ -231,16 +397,32 @@ fun AdDiagnosticsScreen(
                 FormatDiagnosticCard(
                     diagnostics = diagState.bannerStatus,
                     onLoadClick = null,
-                    onShowClick = null
+                    onShowClick = {
+                        showBannerPreview = !showBannerPreview
+                    },
+                    showButtonLabel = if (showBannerPreview) "Hide Banner" else "Preview Banner"
                 )
+
+                if (showBannerPreview) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(SurfaceElevated)
+                            .border(1.dp, BorderHairline, RoundedCornerShape(12.dp))
+                            .padding(10.dp)
+                    ) {
+                        BannerAdView(hasCardContainer = false)
+                    }
+                }
 
                 // 3. Interstitial Ad Format
                 FormatDiagnosticCard(
                     diagnostics = diagState.interstitialStatus,
                     onLoadClick = {
                         testActionMessage = "Requesting Interstitial Test Ad..."
-                        LudoAds.interstitialAdManager.loadAd {
-                            testActionMessage = "Interstitial Test Ad Loaded!"
+                        LudoAds.interstitialAdManager.loadAd(activity, forceReload = true) {
+                            testActionMessage = "Interstitial Test Ad successfully LOADED!"
                         }
                     },
                     onShowClick = {
@@ -250,7 +432,7 @@ fun AdDiagnosticsScreen(
                                 testActionMessage = "Interstitial Test Ad closed"
                             }
                         } else {
-                            testActionMessage = "Error: Activity is null"
+                            testActionMessage = "Error: Activity context is not available"
                         }
                     }
                 )
@@ -260,8 +442,8 @@ fun AdDiagnosticsScreen(
                     diagnostics = diagState.rewardedInterstitialStatus,
                     onLoadClick = {
                         testActionMessage = "Requesting Rewarded Interstitial Test Ad..."
-                        LudoAds.rewardedInterstitialAdManager.loadAd {
-                            testActionMessage = "Rewarded Interstitial Test Ad Loaded!"
+                        LudoAds.rewardedInterstitialAdManager.loadAd(activity, forceReload = true) {
+                            testActionMessage = "Rewarded Interstitial Test Ad successfully LOADED!"
                         }
                     },
                     onShowClick = {
@@ -277,7 +459,7 @@ fun AdDiagnosticsScreen(
                                 }
                             )
                         } else {
-                            testActionMessage = "Error: Activity is null"
+                            testActionMessage = "Error: Activity context is not available"
                         }
                     }
                 )
@@ -287,8 +469,8 @@ fun AdDiagnosticsScreen(
                     diagnostics = diagState.rewardedStatus,
                     onLoadClick = {
                         testActionMessage = "Requesting Rewarded Video Test Ad..."
-                        LudoAds.rewardedAdManager.loadAd {
-                            testActionMessage = "Rewarded Video Test Ad Loaded!"
+                        LudoAds.rewardedAdManager.loadAd(activity, forceReload = true) {
+                            testActionMessage = "Rewarded Video Test Ad successfully LOADED!"
                         }
                     },
                     onShowClick = {
@@ -304,7 +486,7 @@ fun AdDiagnosticsScreen(
                                 }
                             )
                         } else {
-                            testActionMessage = "Error: Activity is null"
+                            testActionMessage = "Error: Activity context is not available"
                         }
                     }
                 )
@@ -312,11 +494,38 @@ fun AdDiagnosticsScreen(
                 // 6. Native Advanced Format
                 FormatDiagnosticCard(
                     diagnostics = diagState.nativeStatus,
-                    onLoadClick = null,
-                    onShowClick = null
+                    onLoadClick = {
+                        testActionMessage = "Requesting Native Advanced Test Ad..."
+                        LudoAds.testLoadNativeAd(
+                            context = activity ?: context,
+                            onLoaded = {
+                                testActionMessage = "Native Advanced Test Ad successfully LOADED!"
+                            },
+                            onFailed = { msg ->
+                                testActionMessage = msg
+                            }
+                        )
+                    },
+                    onShowClick = {
+                        showNativePreview = !showNativePreview
+                    },
+                    showButtonLabel = if (showNativePreview) "Hide Preview" else "Preview Native"
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                if (showNativePreview) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(SurfaceElevated)
+                            .border(1.dp, BorderHairline, RoundedCornerShape(12.dp))
+                            .padding(10.dp)
+                    ) {
+                        NativeAdCard()
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }
@@ -359,7 +568,8 @@ private fun StatusRow(
 private fun FormatDiagnosticCard(
     diagnostics: FormatDiagnostics,
     onLoadClick: (() -> Unit)? = null,
-    onShowClick: (() -> Unit)? = null
+    onShowClick: (() -> Unit)? = null,
+    showButtonLabel: String = "Test Show"
 ) {
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -413,12 +623,21 @@ private fun FormatDiagnosticCard(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(6.dp))
                         .background(StatusDanger.copy(alpha = 0.1f))
-                        .padding(6.dp)
+                        .padding(8.dp)
                 ) {
-                    Text(
-                        text = "Error (${diagnostics.errorCode ?: -1}): ${diagnostics.lastError}",
-                        style = Typography.labelSmall.copy(fontSize = 11.sp, color = StatusDanger)
-                    )
+                    Column {
+                        Text(
+                            text = "Error (${diagnostics.errorCode ?: -1}): ${diagnostics.lastError}",
+                            style = Typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = StatusDanger)
+                        )
+                        if (diagnostics.errorCode == 3) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Code 3 = No Fill. Emulator test device registration and video fallback are now configured. Tap 'Reload Ad' with an active Activity window.",
+                                style = Typography.labelSmall.copy(fontSize = 10.sp, color = TextMuted)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -466,14 +685,18 @@ private fun FormatDiagnosticCard(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    imageVector = Icons.Outlined.PlayCircle,
+                                    imageVector = if (showButtonLabel.contains("Preview") || showButtonLabel.contains("Banner")) {
+                                        Icons.Outlined.Visibility
+                                    } else {
+                                        Icons.Outlined.PlayCircle
+                                    },
                                     contentDescription = null,
                                     tint = if (isReady) Color(0xFF080F22) else AccentPrimary,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    "Test Show",
+                                    showButtonLabel,
                                     style = Typography.labelMedium.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
                                     color = if (isReady) Color(0xFF080F22) else Color.White
                                 )

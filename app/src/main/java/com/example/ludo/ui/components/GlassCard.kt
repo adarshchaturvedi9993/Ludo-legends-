@@ -13,21 +13,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.ui.theme.AccentPrimary
+import com.example.ui.theme.BorderActive
 import com.example.ui.theme.BorderHairline
+import com.example.ui.theme.SurfaceCard
 
 /**
- * Reusable 16dp rounded card with subtle frosted gradient, inner highlight,
- * and 1dp hairline border for tournament clarity.
+ * Reusable clean card container with crisp borders,
+ * balanced 14dp corner radius, and solid contrast.
  */
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
-    cornerRadius: Dp = 16.dp,
+    cornerRadius: Dp = 14.dp,
     isActive: Boolean = false,
     activeBorderColor: Color = AccentPrimary,
     onClick: (() -> Unit)? = null,
@@ -35,28 +36,7 @@ fun GlassCard(
 ) {
     val shape = RoundedCornerShape(cornerRadius)
 
-    val backgroundBrush = Brush.verticalGradient(
-        colors = listOf(
-            Color(0xFF132242),
-            Color(0xFF0C162A)
-        )
-    )
-
-    val borderBrush = if (isActive) {
-        Brush.linearGradient(
-            listOf(
-                activeBorderColor,
-                activeBorderColor.copy(alpha = 0.5f)
-            )
-        )
-    } else {
-        Brush.linearGradient(
-            listOf(
-                Color(0xFF33466B),
-                BorderHairline
-            )
-        )
-    }
+    val borderColor = if (isActive) activeBorderColor else BorderHairline
 
     val clickableModifier = if (onClick != null) {
         Modifier.clickable(
@@ -69,10 +49,10 @@ fun GlassCard(
     Box(
         modifier = modifier
             .clip(shape)
-            .background(backgroundBrush)
+            .background(SurfaceCard)
             .border(
                 width = if (isActive) 1.5.dp else 1.dp,
-                brush = borderBrush,
+                color = borderColor,
                 shape = shape
             )
             .then(clickableModifier)

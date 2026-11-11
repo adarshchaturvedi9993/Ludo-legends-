@@ -4,15 +4,20 @@ import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.util.Log
+import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.RequestConfiguration
 import com.google.android.gms.ads.rewarded.RewardItem
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Central coordinator for Google AdMob in Ludo Legends.
  * Integrates all 6 ad formats with Firebase Remote Config controls,
- * strict single-initialization guarantee, and detailed diagnostics tracking.
+ * strict single-initialization guarantee, registered test devices, and detailed diagnostics tracking.
  */
 object LudoAds {
     private const val TAG = "LudoAds"
@@ -29,8 +34,24 @@ object LudoAds {
     lateinit var rewardedInterstitialAdManager: RewardedInterstitialAdManager
         private set
 
+    var currentActivity: Activity? = null
+        private set
+
     private val isInitializing = AtomicBoolean(false)
     private val isInitialized = AtomicBoolean(false)
+
+    fun setCurrentActivity(activity: Activity) {
+        currentActivity = activity
+        if (::appOpenAdManager.isInitialized) {
+            appOpenAdManager.setTrackedActivity(activity)
+        }
+    }
+
+    fun clearCurrentActivity(activity: Activity) {
+        if (currentActivity == activity) {
+            currentActivity = null
+        }
+    }
 
     fun initialize(application: Application, onReady: (() -> Unit)? = null) {
         if (isInitialized.get()) {
@@ -55,8 +76,13 @@ object LudoAds {
         RemoteConfigManager.initialize(application) {
             // 2. Initialize MobileAds SDK once
             try {
-                // Ensure test device configuration
+                // Register Google's standard test device IDs for emulators and test environments
+                val testDeviceIds = listOf(
+                    AdRequest.DEVICE_ID_EMULATOR,
+                    "B3EEABB8EE11C2BE770B684D95219ECB"
+                )
                 val requestConfiguration = RequestConfiguration.Builder()
+                    .setTestDeviceIds(testDeviceIds)
                     .build()
                 MobileAds.setRequestConfiguration(requestConfiguration)
 
@@ -71,7 +97,7 @@ object LudoAds {
                     isInitialized.set(true)
                     isInitializing.set(false)
 
-                    // 3. Preload full-screen ads only AFTER SDK is initialized
+                    // 3. Preload full-screen ads only AFTER SDK is initialized with staggered pacing
                     preloadAds(application)
                     onReady?.invoke()
                 }
@@ -93,11 +119,31 @@ object LudoAds {
             return
         }
 
-        Log.d(TAG, "Preloading all 4 full-screen test ad formats...")
-        appOpenAdManager.loadAd()
-        interstitialAdManager.loadAd()
-        rewardedAdManager.loadAd()
-        rewardedInterstitialAdManager.loadAd()
+        Log.d(TAG, "Preloading full-screen test ad formats with staggered spacing...")
+        CoroutineScope(Dispatchers.Main).launch {
+            delay(500)
+            interstitialAdManager.loadAd(currentActivity)
+            delay(1200)
+            rewardedAdManager.loadAd(currentActivity)
+            delay(1200)
+            rewardedInterstitialAdManager.loadAd(currentActivity)
+            delay(1200)
+            appOpenAdManager.loadAd(currentActivity)
+        }
+    }
+
+    fun reloadAllAds(activity: Activity? = null, onComplete: (() -> Unit)? = null) {
+        val act = activity ?: currentActivity
+        CoroutineScope(Dispatchers.Main).launch {
+            interstitialAdManager.loadAd(act, forceReload = true)
+            delay(800)
+            rewardedAdManager.loadAd(act, forceReload = true)
+            delay(800)
+            rewardedInterstitialAdManager.loadAd(act, forceReload = true)
+            delay(800)
+            appOpenAdManager.loadAd(act, forceReload = true)
+            onComplete?.invoke()
+        }
     }
 
     // Unified Full-Screen Ad Cooldown Tracking
@@ -200,5 +246,56 @@ object LudoAds {
                 onAdClosed(earned)
             }
         )
+    }
+
+    fun testLoadNativeAd(context: Context, onLoaded: (() -> Unit)? = null, onFailed: ((String) -> Unit)? = null) {
+        val adUnitId = RemoteConfigManager.getNativeAdUnitId()
+        AdDiagnosticsTracker.recordLoading("Native Advanced", adUnitId)
+        val adLoader = com.google.android.gms.ads.AdLoader.Builder(context, adUnitId)
+            .forNativeAd { ad ->
+                val responseSummary = ad.responseInfo?.toString() ?: ""
+                AdDiagnosticsTracker.recordLoaded("Native Advanced", adUnitId, responseSummary)
+                onLoaded?.invoke()
+            }
+            .withAdListener(object : com.google.android.gms.ads.AdListener() {
+                override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+                    AdDiagnosticsTracker.recordFailed(
+                        format = "Native Advanced",
+                        unitId = adUnitId,
+                        code = error.code,
+                        domain = error.domain,
+                        message = error.message,
+                        responseInfoSummary = error.responseInfo?.toString() ?: ""
+                    )
+                    // Fallback to video native in test mode
+                    if (!RemoteConfigManager.isLiveMode() && adUnitId == AdConstants.TEST_NATIVE) {
+                        val fallbackId = AdConstants.TEST_NATIVE_VIDEO
+                        AdDiagnosticsTracker.recordLoading("Native Advanced", fallbackId)
+                        val fbLoader = com.google.android.gms.ads.AdLoader.Builder(context, fallbackId)
+                            .forNativeAd { fbAd ->
+                                AdDiagnosticsTracker.recordLoaded("Native Advanced", fallbackId, fbAd.responseInfo?.toString() ?: "")
+                                onLoaded?.invoke()
+                            }
+                            .withAdListener(object : com.google.android.gms.ads.AdListener() {
+                                override fun onAdFailedToLoad(fbErr: com.google.android.gms.ads.LoadAdError) {
+                                    AdDiagnosticsTracker.recordFailed(
+                                        format = "Native Advanced",
+                                        unitId = fallbackId,
+                                        code = fbErr.code,
+                                        domain = fbErr.domain,
+                                        message = fbErr.message
+                                    )
+                                    onFailed?.invoke("Failed: ${fbErr.message}")
+                                }
+                            })
+                            .build()
+                        fbLoader.loadAd(com.google.android.gms.ads.AdRequest.Builder().build())
+                    } else {
+                        onFailed?.invoke("Failed: ${error.message}")
+                    }
+                }
+            })
+            .build()
+        adLoader.loadAd(com.google.android.gms.ads.AdRequest.Builder().build())
     }
 }

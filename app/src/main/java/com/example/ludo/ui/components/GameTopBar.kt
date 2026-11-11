@@ -6,15 +6,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
@@ -25,48 +23,47 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.AccentPrimary
-import com.example.ui.theme.GoldHighlight
-import com.example.ui.theme.GoldRimGradientColors
+import com.example.ui.theme.BorderHairline
+import com.example.ui.theme.SurfaceCard
+import com.example.ui.theme.TextMuted
+import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.Typography
 
 /**
- * Standard top navigation bar matching the Veeru dark navy & gold rim aesthetic.
+ * Standard game top bar with clean typography, balanced alignment,
+ * tactile back button, and zero gimmicks/emojis.
  */
 @Composable
 fun GameTopBar(
     title: String,
     onBackClick: (() -> Unit)? = null,
     subtitle: String? = null,
-    crownPrefix: Boolean = true,
+    crownPrefix: Boolean = false, // Ignored: Crown emoji eliminated per UX quality directive
     actions: @Composable (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 6.dp),
+            .padding(horizontal = 4.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Left Slot: Back Button (or empty placeholder for balance)
+        // Left Slot: Back Button
         if (onBackClick != null) {
             Box(
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(42.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF0D1D38))
-                    .border(
-                        width = 1.5.dp,
-                        brush = Brush.linearGradient(GoldRimGradientColors),
-                        shape = CircleShape
-                    )
+                    .background(SurfaceCard)
+                    .border(1.dp, BorderHairline, CircleShape)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = ripple(bounded = true, color = AccentPrimary),
@@ -78,62 +75,53 @@ fun GameTopBar(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Navigate Back",
-                    tint = Color.White,
+                    tint = TextPrimary,
                     modifier = Modifier.size(20.dp)
                 )
             }
         } else {
-            Spacer(modifier = Modifier.size(44.dp))
+            Spacer(modifier = Modifier.size(42.dp))
         }
 
-        // Center Slot: Crown pill with title
-        Row(
-            modifier = Modifier
-                .height(42.dp)
-                .clip(RoundedCornerShape(21.dp))
-                .background(Color(0xFF0A1428))
-                .border(
-                    width = 1.5.dp,
-                    brush = Brush.linearGradient(listOf(GoldHighlight, AccentPrimary)),
-                    shape = RoundedCornerShape(21.dp)
-                )
-                .padding(horizontal = 18.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+        // Center Slot: Professional Title & Optional Subtitle
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.weight(1f)
         ) {
-            if (crownPrefix) {
-                Text(text = "👑", fontSize = 14.sp)
-                Spacer(modifier = Modifier.width(8.dp))
-            }
             Text(
-                text = title.uppercase(),
+                text = title,
                 style = Typography.titleMedium.copy(
-                    fontSize = 14.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.2.sp
+                    letterSpacing = 0.5.sp
                 ),
-                color = AccentPrimary
+                color = TextPrimary,
+                textAlign = TextAlign.Center
             )
             if (subtitle != null) {
-                Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "• $subtitle",
-                    style = Typography.bodyMedium.copy(fontSize = 12.sp),
-                    color = Color.White.copy(alpha = 0.8f)
+                    text = subtitle,
+                    style = Typography.labelSmall.copy(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    ),
+                    color = TextMuted,
+                    textAlign = TextAlign.Center
                 )
             }
         }
 
-        // Right Slot: Optional action or spacer
+        // Right Slot: Optional action or matching spacer
         if (actions != null) {
             Box(
-                modifier = Modifier.size(44.dp),
+                modifier = Modifier.size(42.dp),
                 contentAlignment = Alignment.Center
             ) {
                 actions()
             }
         } else {
-            Spacer(modifier = Modifier.size(44.dp))
+            Spacer(modifier = Modifier.size(42.dp))
         }
     }
 }

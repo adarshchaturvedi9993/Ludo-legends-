@@ -21,45 +21,44 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Stars
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ludo.ads.BannerAdView
 import com.example.ludo.model.GameState
 import com.example.ludo.model.Player
 import com.example.ludo.ui.components.ConfettiEffect
 import com.example.ludo.ui.components.GameBackground
 import com.example.ludo.ui.components.GameButton
 import com.example.ludo.ui.components.GameButtonStyle
-import com.example.ludo.ui.components.GlassCard
 import com.example.ludo.ui.components.TurnedPawn
 import com.example.ui.theme.AccentPrimary
 import com.example.ui.theme.BorderHairline
-import com.example.ui.theme.GoldRimGradientColors
 import com.example.ui.theme.StarGold
+import com.example.ui.theme.SurfaceCard
 import com.example.ui.theme.SurfaceElevated
 import com.example.ui.theme.TextMuted
+import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.Typography
 
-import androidx.compose.material.icons.outlined.Stars
-import com.example.ludo.ads.BannerAdView
-
 /**
- * Production Victory Screen:
- * - Dynamic confetti celebration
- * - 3D Trophy and Winner crown
- * - Detailed standings breakdown with player colors
- * - Match statistics (Total turns, sixes rolled, captures)
- * - Rematch & Main Menu action buttons
+ * World-Class Tournament Victory Screen:
+ * - Dynamic celebratory confetti
+ * - Clean gold trophy emblem
+ * - Clear tournament winner banner
+ * - Final standings roster with pawn avatars and progress
+ * - Match telemetry (Total turns, sixes rolled, captures)
+ * - Rematch & Main Menu actions
  */
 @Composable
 fun VictoryScreen(
@@ -91,30 +90,30 @@ fun VictoryScreen(
                 // Header / Trophy
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(top = 16.dp)
+                    modifier = Modifier.padding(top = 12.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(92.dp)
+                            .size(84.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF0D1D38))
-                            .border(2.dp, Brush.linearGradient(GoldRimGradientColors), CircleShape),
+                            .background(SurfaceCard)
+                            .border(2.dp, AccentPrimary, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.EmojiEvents,
                             contentDescription = "Trophy",
                             tint = StarGold,
-                            modifier = Modifier.size(52.dp)
+                            modifier = Modifier.size(48.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        text = "VICTORY!",
-                        style = Typography.displayLarge.copy(
-                            fontSize = 34.sp,
+                        text = "VICTORY",
+                        style = Typography.displayMedium.copy(
+                            fontSize = 30.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 2.0.sp
                         ),
@@ -124,29 +123,40 @@ fun VictoryScreen(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = "${winner.name.uppercase()} WINS THE TOURNAMENT",
-                        style = Typography.titleMedium.copy(
-                            fontSize = 15.sp,
+                        text = "${winner.name.uppercase()} WINS",
+                        style = Typography.titleLarge.copy(
+                            fontSize = 17.sp,
                             fontWeight = FontWeight.Bold
                         ),
-                        color = Color.White
+                        color = TextPrimary
                     )
 
                     Text(
-                        text = "First to guide all 4 tokens into the central home goal",
+                        text = "First contender to guide all 4 pawns home",
                         style = Typography.bodyMedium.copy(fontSize = 12.sp),
                         color = TextSecondary
                     )
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 // Standings & Stats Card
-                GlassCard(modifier = Modifier.fillMaxWidth(), isActive = true) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(SurfaceCard)
+                        .border(1.2.dp, AccentPrimary.copy(alpha = 0.6f), RoundedCornerShape(14.dp))
+                        .padding(16.dp)
+                ) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
                             text = "FINAL STANDINGS",
-                            style = Typography.labelLarge.copy(letterSpacing = 1.0.sp),
+                            style = Typography.labelLarge.copy(
+                                fontSize = 11.sp,
+                                letterSpacing = 1.0.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
                             color = AccentPrimary
                         )
 
@@ -167,7 +177,7 @@ fun VictoryScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFF091222))
+                                .background(SurfaceElevated)
                                 .border(1.dp, BorderHairline, RoundedCornerShape(8.dp))
                                 .padding(vertical = 10.dp, horizontal = 12.dp),
                             horizontalArrangement = Arrangement.SpaceAround
@@ -179,7 +189,7 @@ fun VictoryScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Optional Rewarded Ad: Claim 2X Victory Bonus
                 if (onClaimDoubleReward != null) {
@@ -198,11 +208,11 @@ fun VictoryScreen(
                                     imageVector = Icons.Outlined.Stars,
                                     contentDescription = null,
                                     tint = StarGold,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "🎉 2X VICTORY REWARDS CLAIMED (+1000 XP & Reroll)",
+                                    text = "2X VICTORY REWARDS CLAIMED (+1000 XP & Reroll)",
                                     style = Typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                     color = StarGold
                                 )
@@ -218,18 +228,18 @@ fun VictoryScreen(
                             testTag = "claim_double_reward_button"
                         )
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                 }
 
                 // Action Buttons
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     GameButton(
                         text = "Play Again",
                         onClick = onPlayAgainClick,
-                        style = GameButtonStyle.SECONDARY_GLASS,
+                        style = GameButtonStyle.PRIMARY_GOLD,
                         icon = Icons.Default.PlayArrow,
                         testTag = "play_again_button"
                     )
@@ -246,12 +256,12 @@ fun VictoryScreen(
                 BannerAdView(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp, bottom = 12.dp),
+                        .padding(top = 8.dp, bottom = 10.dp),
                     placementKey = com.example.ludo.ads.AdConstants.KEY_BANNER_VICTORY,
                     hasCardContainer = true,
                     cornerRadius = 14.dp,
-                    containerBackground = Color(0xFF0D1D38),
-                    containerBorderColor = Color(0xFF293B5B)
+                    containerBackground = SurfaceCard,
+                    containerBorderColor = BorderHairline
                 )
             }
         }
@@ -265,20 +275,20 @@ private fun StandingRow(rank: Int, player: Player) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(SurfaceElevated)
-            .border(1.dp, if (rank == 1) StarGold.copy(alpha = 0.5f) else BorderHairline, RoundedCornerShape(8.dp))
+            .border(1.dp, if (rank == 1) AccentPrimary.copy(alpha = 0.5f) else BorderHairline, RoundedCornerShape(8.dp))
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = if (rank == 1) "👑 #1" else "#$rank",
+                text = if (rank == 1) "#1 👑" else "#$rank",
                 style = Typography.titleMedium.copy(
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
                 ),
-                color = if (rank == 1) StarGold else TextMuted,
-                modifier = Modifier.width(42.dp)
+                color = if (rank == 1) AccentPrimary else TextMuted,
+                modifier = Modifier.width(44.dp)
             )
 
             TurnedPawn(
@@ -296,7 +306,7 @@ private fun StandingRow(rank: Int, player: Player) {
                     fontSize = 14.sp,
                     fontWeight = if (rank == 1) FontWeight.Bold else FontWeight.Medium
                 ),
-                color = if (rank == 1) Color.White else TextSecondary
+                color = if (rank == 1) TextPrimary else TextSecondary
             )
         }
 
@@ -317,7 +327,7 @@ private fun StatSummaryItem(label: String, value: String) {
         Text(
             text = value,
             style = Typography.titleLarge.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold),
-            color = Color.White
+            color = TextPrimary
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(

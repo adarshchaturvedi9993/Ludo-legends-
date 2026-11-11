@@ -2,6 +2,7 @@ package com.example.ludo.ads
 
 import android.app.Activity
 import android.app.Application
+import android.content.Context
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -42,6 +43,10 @@ class AppOpenAdManager(private val application: Application) :
      */
     var isGameActive: Boolean = false
 
+    fun setTrackedActivity(activity: Activity) {
+        currentActivity = activity
+    }
+
     init {
         application.registerActivityLifecycleCallbacks(this)
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
@@ -49,7 +54,15 @@ class AppOpenAdManager(private val application: Application) :
 
     fun isAdLoaded(): Boolean = isAdAvailable()
 
-    fun loadAd(onLoaded: (() -> Unit)? = null) {
+    fun loadAd(activityContext: Context? = null, forceReload: Boolean = false, onLoaded: (() -> Unit)? = null) {
+        val ctx = activityContext ?: currentActivity ?: application
+
+        if (forceReload) {
+            appOpenAd = null
+            isLoadingAd = false
+            retryCount = 0
+        }
+
         if (isLoadingAd || isAdAvailable()) {
             if (isAdAvailable()) onLoaded?.invoke()
             return
@@ -68,7 +81,7 @@ class AppOpenAdManager(private val application: Application) :
         Log.d(TAG, "[AdMob Request] App Open -> AdUnitId: $adUnitId (LiveMode=${RemoteConfigManager.isLiveMode()})")
 
         AppOpenAd.load(
-            application,
+            ctx,
             adUnitId,
             request,
             object : AppOpenAd.AppOpenAdLoadCallback() {
@@ -104,7 +117,7 @@ class AppOpenAdManager(private val application: Application) :
                         val delayMs = (5000L * (1 shl retryCount)).coerceAtMost(30000L)
                         retryCount++
                         Log.d(TAG, "Scheduling App Open retry #$retryCount in ${delayMs / 1000}s")
-                        mainHandler.postDelayed({ loadAd() }, delayMs)
+                        mainHandler.postDelayed({ loadAd(ctx) }, delayMs)
                     }
                 }
             }

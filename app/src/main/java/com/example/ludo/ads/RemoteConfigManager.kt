@@ -178,15 +178,21 @@ object RemoteConfigManager {
         }
     }
 
+    fun setDebugMode(isLive: Boolean) {
+        val mode = if (isLive) AdConstants.MODE_LIVE else AdConstants.MODE_TEST
+        _configState.value = _configState.value.copy(
+            isLiveMode = isLive,
+            adsMode = mode
+        )
+        AdDiagnosticsTracker.updateFirebaseStatus(
+            initialized = true,
+            isLive = isLive,
+            mode = mode
+        )
+    }
+
     fun isLiveMode(): Boolean {
-        return try {
-            val remoteConfig = FirebaseRemoteConfig.getInstance()
-            val enabled = remoteConfig.getBoolean(AdConstants.KEY_ADS_ENABLED)
-            val mode = remoteConfig.getString(AdConstants.KEY_ADS_MODE).trim().lowercase()
-            enabled && (mode == AdConstants.MODE_LIVE)
-        } catch (_: Exception) {
-            false
-        }
+        return _configState.value.isLiveMode
     }
 
     fun getAppOpenAdUnitId(): String {

@@ -28,7 +28,15 @@ class RewardedInterstitialAdManager(private val context: Context) {
     val isLoaded: Boolean
         get() = rewardedInterstitialAd != null
 
-    fun loadAd(onLoaded: (() -> Unit)? = null) {
+    fun loadAd(activityContext: Context? = null, forceReload: Boolean = false, onLoaded: (() -> Unit)? = null) {
+        val ctx = activityContext ?: LudoAds.currentActivity ?: context
+
+        if (forceReload) {
+            rewardedInterstitialAd = null
+            isLoading = false
+            retryCount = 0
+        }
+
         if (isLoading || rewardedInterstitialAd != null) {
             if (rewardedInterstitialAd != null) onLoaded?.invoke()
             return
@@ -46,7 +54,7 @@ class RewardedInterstitialAdManager(private val context: Context) {
         Log.d(TAG, "[AdMob Request] Rewarded Interstitial -> AdUnitId: $adUnitId (LiveMode=${RemoteConfigManager.isLiveMode()})")
 
         RewardedInterstitialAd.load(
-            context,
+            ctx,
             adUnitId,
             request,
             object : RewardedInterstitialAdLoadCallback() {
@@ -81,7 +89,7 @@ class RewardedInterstitialAdManager(private val context: Context) {
                         val delayMs = (5000L * (1 shl retryCount)).coerceAtMost(30000L)
                         retryCount++
                         Log.d(TAG, "Scheduling Rewarded Interstitial retry #$retryCount in ${delayMs / 1000}s")
-                        mainHandler.postDelayed({ loadAd() }, delayMs)
+                        mainHandler.postDelayed({ loadAd(ctx) }, delayMs)
                     }
                 }
             }
@@ -96,7 +104,7 @@ class RewardedInterstitialAdManager(private val context: Context) {
         val ad = rewardedInterstitialAd
         if (ad == null) {
             Log.d(TAG, "Rewarded Interstitial is not loaded; triggering load and proceeding.")
-            loadAd()
+            loadAd(activity)
             onAdClosed(false)
             return
         }
@@ -108,7 +116,7 @@ class RewardedInterstitialAdManager(private val context: Context) {
                 rewardedInterstitialAd = null
                 Log.d(TAG, "[AdMob Event] Rewarded Interstitial dismissed. Reward granted: $rewardGranted")
                 AdDiagnosticsTracker.recordDismissed("Rewarded Interstitial")
-                loadAd()
+                loadAd(activity)
                 onAdClosed(rewardGranted)
             }
 
@@ -122,7 +130,7 @@ class RewardedInterstitialAdManager(private val context: Context) {
                     domain = adError.domain,
                     message = adError.message
                 )
-                loadAd()
+                loadAd(activity)
                 onAdClosed(false)
             }
 

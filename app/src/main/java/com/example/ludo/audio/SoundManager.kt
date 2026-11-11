@@ -4,21 +4,23 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.media.MediaPlayer
+import android.media.SoundPool
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import com.example.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlin.math.PI
-import kotlin.math.exp
 import kotlin.math.sin
 
 /**
- * Premium procedural sound synthesizer and ambient music engine.
- * Generates tactile wooden clacks, realistic tumbling dice, capture impacts, victory fanfares,
- * and a subtle, non-intrusive ambient background music loop dynamically using AudioTrack PCM.
+ * Audio and haptics manager for Ludo Legends.
+ * Plays background music using ludo1.mp3 and realistic dice roll sounds using diceroll.mp3,
+ * combined with tactile haptics and procedural game sonification.
  */
 class SoundManager(private val context: Context) {
 
@@ -47,10 +49,162 @@ class SoundManager(private val context: Context) {
     }
 
     private val sampleRate = 44100
-    private val musicSampleRate = 22050
 
-    private var musicTrack: AudioTrack? = null
-    private var isMusicInitialized = false
+    // Background Music (ludo1.mp3)
+    private var backgroundMediaPlayer: MediaPlayer? = null
+
+    // Dice Roll Sound Effect (diceroll.mp3) via SoundPool
+    private var soundPool: SoundPool? = null
+    private var diceRollSoundId: Int = 0
+    private var isDiceRollLoaded: Boolean = false
+
+    init {
+        initSoundPool()
+    }
+
+    private fun initSoundPool() {
+        try {
+            val attributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_GAME)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+
+            val pool = SoundPool.Builder()
+                .setMaxStreams(4)
+                .setAudioAttributes(attributes)
+                .build()
+
+            soundPool = pool
+            diceRollSoundId = pool.load(context, R.raw.diceroll, 1)
+            pool.setOnLoadCompleteListener { _, sampleId, status ->
+                if (status == 0 && sampleId == diceRollSoundId) {
+                    isDiceRollLoaded = true
+                }
+            }
+        } catch (_: Exception) {
+            // Graceful fallback if SoundPool encounters native errors
+        }
+    }
+
+    // ==========================================
+    // Background Music: ludo1.mp3
+    // ==========================================
+
+    fun startBackgroundMusic() {
+        if (!isMusicEnabled) return
+        try {
+            if (backgroundMediaPlayer == null) {
+                backgroundMediaPlayer = MediaPlayer.create(context, R.raw.ludo1)?.apply {
+                    isLooping = true
+                    setVolume(0.35f, 0.35f)
+                    start()
+                }
+            } else {
+                if (backgroundMediaPlayer?.isPlaying != true) {
+                    backgroundMediaPlayer?.start()
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun resumeMusic() {
+        if (!isMusicEnabled) return
+        try {
+            if (backgroundMediaPlayer == null) {
+                startBackgroundMusic()
+            } else if (backgroundMediaPlayer?.isPlaying != true) {
+                backgroundMediaPlayer?.start()
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun pauseMusic() {
+        try {
+            if (backgroundMediaPlayer?.isPlaying == true) {
+                backgroundMediaPlayer?.pause()
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun stopBackgroundMusic() {
+        try {
+            backgroundMediaPlayer?.stop()
+            backgroundMediaPlayer?.release()
+            backgroundMediaPlayer = null
+        } catch (_: Exception) {}
+    }
+
+    fun release() {
+        stopBackgroundMusic()
+        try {
+            soundPool?.release()
+            soundPool = null
+            isDiceRollLoaded = false
+        } catch (_: Exception) {}
+    }
+
+    // ==========================================
+    // Dice Roll Sound: diceroll.mp3
+    // ==========================================
+
+    fun playDiceRoll() {
+        triggerHapticPattern(longArrayOf(0, 20, 35, 20, 30, 25))
+        if (!isSoundEnabled) return
+
+        try {
+            if (isDiceRollLoaded && diceRollSoundId != 0) {
+                soundPool?.play(diceRollSoundId, 1.0f, 1.0f, 1, 0, 1.0f)
+                return
+            }
+
+            // Fallback to MediaPlayer if SoundPool load not yet completed
+            val mp = MediaPlayer.create(context, R.raw.diceroll)
+            mp?.setOnCompletionListener { player ->
+                try {
+                    player.release()
+                } catch (_: Exception) {}
+            }
+            mp?.start()
+        } catch (_: Exception) {
+            // Procedural safety fallback
+            playProceduralDiceRoll()
+        }
+    }
+
+    private fun playProceduralDiceRoll() {
+        playPcm {
+            val durationSec = 0.45
+            val numSamples = (sampleRate * durationSec).toInt()
+            val samples = ShortArray(numSamples)
+            val clicks = intArrayOf(
+                0, (numSamples * 0.12).toInt(), (numSamples * 0.28).toInt(),
+                (numSamples * 0.45).toInt(), (numSamples * 0.65).toInt(),
+                (numSamples * 0.82).toInt(), (numSamples * 0.95).toInt()
+            )
+
+            for (i in 0 until numSamples) {
+                val overallDecay = 1.0 - (i.toDouble() / numSamples) * 0.5
+                var value = 0.0
+                for (clickStart in clicks) {
+                    val delta = i - clickStart
+                    if (delta in 0..1200) {
+                        val clickT = delta.toDouble() / sampleRate
+                        val clickDecay = (1.0 - delta.toDouble() / 1200).coerceAtLeast(0.0)
+                        val freq = 450.0 + (clickStart % 3) * 120.0
+                        value += sin(2.0 * PI * freq * clickT) * clickDecay * 0.7
+                    }
+                }
+                val t = i.toDouble() / sampleRate
+                value += sin(2.0 * PI * 180.0 * t) * 0.08 * overallDecay
+                samples[i] = (value.coerceIn(-1.0, 1.0) * Short.MAX_VALUE * 0.75).toInt().toShort()
+            }
+            samples
+        }
+    }
+
+    // ==========================================
+    // Tactical SFX & Synthesized Effects
+    // ==========================================
 
     private fun playPcm(generator: () -> ShortArray) {
         if (!isSoundEnabled) return
@@ -89,127 +243,8 @@ class SoundManager(private val context: Context) {
                 Thread.sleep(durationMs)
                 audioTrack.stop()
                 audioTrack.release()
-            } catch (_: Exception) {
-                // Fallback gracefully on any audio hardware limit
-            }
-        }
-    }
-
-    fun startBackgroundMusic() {
-        if (!isMusicEnabled) return
-        audioScope.launch {
-            initAndStartMusic()
-        }
-    }
-
-    fun resumeMusic() {
-        if (!isMusicEnabled) return
-        audioScope.launch {
-            try {
-                if (musicTrack == null) {
-                    initAndStartMusic()
-                } else if (musicTrack?.playState != AudioTrack.PLAYSTATE_PLAYING) {
-                    musicTrack?.play()
-                }
             } catch (_: Exception) {}
         }
-    }
-
-    fun pauseMusic() {
-        try {
-            if (musicTrack?.playState == AudioTrack.PLAYSTATE_PLAYING) {
-                musicTrack?.pause()
-            }
-        } catch (_: Exception) {}
-    }
-
-    fun stopBackgroundMusic() {
-        try {
-            musicTrack?.stop()
-            musicTrack?.release()
-            musicTrack = null
-            isMusicInitialized = false
-        } catch (_: Exception) {}
-    }
-
-    private fun initAndStartMusic() {
-        try {
-            if (musicTrack != null) {
-                if (musicTrack?.playState != AudioTrack.PLAYSTATE_PLAYING && isMusicEnabled) {
-                    musicTrack?.play()
-                }
-                return
-            }
-
-            // Synthesize a calming 8-second ambient acoustic kalimba/marimba loop
-            val loopDurationSec = 8.0
-            val totalSamples = (musicSampleRate * loopDurationSec).toInt()
-            val samples = ShortArray(totalSamples)
-
-            // Warm, peaceful pentatonic melody sequence (time in seconds, frequency in Hz)
-            val notes = listOf(
-                Pair(0.0, 261.63), // C4
-                Pair(0.7, 392.00), // G4
-                Pair(1.4, 329.63), // E4
-                Pair(2.1, 440.00), // A4
-                Pair(3.0, 293.66), // D4
-                Pair(3.7, 392.00), // G4
-                Pair(4.4, 523.25), // C5
-                Pair(5.2, 440.00), // A4
-                Pair(6.0, 392.00), // G4
-                Pair(6.8, 329.63)  // E4
-            )
-
-            for (note in notes) {
-                val startSample = (note.first * musicSampleRate).toInt()
-                val freq = note.second
-                val noteDurationSamples = (musicSampleRate * 1.6).toInt()
-
-                for (i in 0 until noteDurationSamples) {
-                    val destIdx = startSample + i
-                    if (destIdx >= totalSamples) break
-                    val t = i.toDouble() / musicSampleRate
-                    // Organic acoustic pluck envelope with gentle exponential decay
-                    val envelope = exp(-3.8 * t) * (1.0 - exp(-60.0 * t))
-                    // Fundamental + subtle warm 2nd harmonic
-                    val wave = (sin(2.0 * PI * freq * t) * 0.75 + sin(2.0 * PI * (freq * 2.0) * t) * 0.25) * envelope
-                    val sampleValue = (wave * 0.16 * Short.MAX_VALUE).toInt()
-                    val current = samples[destIdx].toInt()
-                    samples[destIdx] = (current + sampleValue).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-                }
-            }
-
-            val track = AudioTrack.Builder()
-                .setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_GAME)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                        .build()
-                )
-                .setAudioFormat(
-                    AudioFormat.Builder()
-                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                        .setSampleRate(musicSampleRate)
-                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                        .build()
-                )
-                .setBufferSizeInBytes(samples.size * 2)
-                .setTransferMode(AudioTrack.MODE_STATIC)
-                .build()
-
-            track.write(samples, 0, samples.size)
-            track.setLoopPoints(0, samples.size, -1)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                track.setVolume(0.24f) // Gentle, non-intrusive background volume
-            }
-
-            musicTrack = track
-            isMusicInitialized = true
-
-            if (isMusicEnabled) {
-                track.play()
-            }
-        } catch (_: Exception) {}
     }
 
     fun playButtonTap() {
@@ -239,7 +274,6 @@ class SoundManager(private val context: Context) {
                 val t = i.toDouble() / sampleRate
                 val progress = i.toDouble() / numSamples
                 val decay = (1.0 - progress) * (1.0 - progress)
-                // Upward frequency swoop 600Hz -> 1100Hz creating a crisp "pop"
                 val freq = 600.0 + (progress * 500.0)
                 val wave = sin(2.0 * PI * freq * t) * decay * 0.70
                 samples[i] = (wave * Short.MAX_VALUE).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
@@ -257,38 +291,6 @@ class SoundManager(private val context: Context) {
                 val decay = 1.0 - (i.toDouble() / numSamples)
                 val wave = sin(2.0 * PI * 680.0 * t) * decay * 0.30
                 samples[i] = (wave * Short.MAX_VALUE).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            samples
-        }
-    }
-
-    fun playDiceRoll() {
-        triggerHapticPattern(longArrayOf(0, 20, 35, 20, 30, 25))
-        playPcm {
-            val durationSec = 0.45
-            val numSamples = (sampleRate * durationSec).toInt()
-            val samples = ShortArray(numSamples)
-            val clicks = intArrayOf(
-                0, (numSamples * 0.12).toInt(), (numSamples * 0.28).toInt(),
-                (numSamples * 0.45).toInt(), (numSamples * 0.65).toInt(),
-                (numSamples * 0.82).toInt(), (numSamples * 0.95).toInt()
-            )
-
-            for (i in 0 until numSamples) {
-                val overallDecay = 1.0 - (i.toDouble() / numSamples) * 0.5
-                var value = 0.0
-                for (clickStart in clicks) {
-                    val delta = i - clickStart
-                    if (delta in 0..1200) {
-                        val clickT = delta.toDouble() / sampleRate
-                        val clickDecay = (1.0 - delta.toDouble() / 1200).coerceAtLeast(0.0)
-                        val freq = 450.0 + (clickStart % 3) * 120.0
-                        value += sin(2.0 * PI * freq * clickT) * clickDecay * 0.7
-                    }
-                }
-                val t = i.toDouble() / sampleRate
-                value += sin(2.0 * PI * 180.0 * t) * 0.08 * overallDecay
-                samples[i] = (value.coerceIn(-1.0, 1.0) * Short.MAX_VALUE * 0.75).toInt().toShort()
             }
             samples
         }

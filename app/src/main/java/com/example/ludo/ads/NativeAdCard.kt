@@ -79,6 +79,31 @@ fun NativeAdCard(
                         message = error.message,
                         responseInfoSummary = error.responseInfo?.toString() ?: ""
                     )
+
+                    // If primary test native ad returned No Fill (error 3), try companion test native video
+                    if (!RemoteConfigManager.isLiveMode() && adUnitId == AdConstants.TEST_NATIVE) {
+                        val fallbackId = AdConstants.TEST_NATIVE_VIDEO
+                        AdDiagnosticsTracker.recordLoading("Native Advanced", fallbackId)
+                        val fallbackLoader = AdLoader.Builder(context, fallbackId)
+                            .forNativeAd { fallbackAd ->
+                                loadedNativeAd?.destroy()
+                                loadedNativeAd = fallbackAd
+                                AdDiagnosticsTracker.recordLoaded("Native Advanced", fallbackId, fallbackAd.responseInfo?.toString() ?: "")
+                            }
+                            .withAdListener(object : AdListener() {
+                                override fun onAdFailedToLoad(fbErr: LoadAdError) {
+                                    AdDiagnosticsTracker.recordFailed(
+                                        format = "Native Advanced",
+                                        unitId = fallbackId,
+                                        code = fbErr.code,
+                                        domain = fbErr.domain,
+                                        message = fbErr.message
+                                    )
+                                }
+                            })
+                            .build()
+                        fallbackLoader.loadAd(AdRequest.Builder().build())
+                    }
                 }
             })
             .withNativeAdOptions(
@@ -128,9 +153,9 @@ private fun createNativeAdView(context: Context, nativeAd: NativeAd): NativeAdVi
     val cardLayout = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         val bgDrawable = GradientDrawable().apply {
-            setColor(AndroidColor.parseColor("#0D1D38"))
+            setColor(AndroidColor.parseColor("#111B2E"))
             cornerRadius = dpToPx(context, 14f)
-            setStroke(dpToPx(context, 1f).toInt(), AndroidColor.parseColor("#293B5B"))
+            setStroke(dpToPx(context, 1f).toInt(), AndroidColor.parseColor("#1E2F4D"))
         }
         background = bgDrawable
         val pad = dpToPx(context, 12f).toInt()
@@ -175,9 +200,9 @@ private fun createNativeAdView(context: Context, nativeAd: NativeAd): NativeAdVi
     val adBadge = TextView(context).apply {
         text = "AD"
         textSize = 10f
-        setTextColor(AndroidColor.parseColor("#080F22"))
+        setTextColor(AndroidColor.parseColor("#090E1A"))
         val badgeBg = GradientDrawable().apply {
-            setColor(AndroidColor.parseColor("#00E5FF"))
+            setColor(AndroidColor.parseColor("#F59E0B"))
             cornerRadius = dpToPx(context, 4f)
         }
         background = badgeBg
@@ -190,7 +215,7 @@ private fun createNativeAdView(context: Context, nativeAd: NativeAd): NativeAdVi
     val advertiserView = TextView(context).apply {
         id = View.generateViewId()
         textSize = 11f
-        setTextColor(AndroidColor.parseColor("#8E9EB5"))
+        setTextColor(AndroidColor.parseColor("#94A3B8"))
         setPadding(dpToPx(context, 6f).toInt(), 0, 0, 0)
     }
     badgeAndAdvertiserRow.addView(advertiserView)
@@ -215,21 +240,21 @@ private fun createNativeAdView(context: Context, nativeAd: NativeAd): NativeAdVi
     val bodyView = TextView(context).apply {
         id = View.generateViewId()
         textSize = 12f
-        setTextColor(AndroidColor.parseColor("#B0C2DE"))
+        setTextColor(AndroidColor.parseColor("#94A3B8"))
         maxLines = 2
         setPadding(0, dpToPx(context, 6f).toInt(), 0, dpToPx(context, 8f).toInt())
     }
     cardLayout.addView(bodyView)
     nativeAdView.bodyView = bodyView
 
-    // Call to Action Button (Glowing Cyan pill matching Ludo theme)
+    // Call to Action Button (Tournament Gold pill matching Ludo theme)
     val ctaButton = Button(context).apply {
         id = View.generateViewId()
         textSize = 13f
-        setTextColor(AndroidColor.parseColor("#080F22"))
+        setTextColor(AndroidColor.parseColor("#090E1A"))
         setTypeface(typeface, android.graphics.Typeface.BOLD)
         val btnBg = GradientDrawable().apply {
-            setColor(AndroidColor.parseColor("#00E5FF"))
+            setColor(AndroidColor.parseColor("#F59E0B"))
             cornerRadius = dpToPx(context, 8f)
         }
         background = btnBg

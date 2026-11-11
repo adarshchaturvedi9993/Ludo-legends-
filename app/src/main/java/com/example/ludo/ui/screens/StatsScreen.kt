@@ -2,6 +2,7 @@ package com.example.ludo.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,8 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.FlashOn
 import androidx.compose.material.icons.outlined.MilitaryTech
+import androidx.compose.material.icons.outlined.Stars
+import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,16 +36,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.outlined.Stars
-import androidx.compose.material.icons.outlined.VideoLibrary
-import androidx.compose.foundation.clickable
 import com.example.ludo.ads.BannerAdView
 import com.example.ludo.ads.NativeAdCard
 import com.example.ludo.ads.RemoteConfigManager
@@ -53,13 +52,14 @@ import com.example.ludo.ui.components.GameButton
 import com.example.ludo.ui.components.GameButtonStyle
 import com.example.ludo.ui.components.GameDialog
 import com.example.ludo.ui.components.GameTopBar
-import com.example.ludo.ui.components.GlassCard
 import com.example.ludo.ui.components.StatChip
 import com.example.ui.theme.AccentPrimary
 import com.example.ui.theme.BorderHairline
-import com.example.ui.theme.GoldHighlight
 import com.example.ui.theme.StarGold
+import com.example.ui.theme.SurfaceCard
+import com.example.ui.theme.SurfaceElevated
 import com.example.ui.theme.TextMuted
+import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.Typography
 
@@ -100,13 +100,17 @@ fun StatsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 // 1. Hero Win-Rate Card with Progress Bar
-                GlassCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    isActive = true
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(SurfaceCard)
+                        .border(1.2.dp, AccentPrimary.copy(alpha = 0.6f), RoundedCornerShape(14.dp))
+                        .padding(16.dp)
                 ) {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
@@ -120,53 +124,49 @@ fun StatsScreen(
                                 imageVector = Icons.Outlined.EmojiEvents,
                                 contentDescription = null,
                                 tint = StarGold,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "TOURNAMENT PERFORMANCE",
-                                style = Typography.labelLarge.copy(letterSpacing = 1.2.sp),
+                                text = "CAREER PERFORMANCE",
+                                style = Typography.labelLarge.copy(
+                                    fontSize = 11.sp,
+                                    letterSpacing = 1.0.sp,
+                                    fontWeight = FontWeight.Bold
+                                ),
                                 color = AccentPrimary
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
                         Text(
                             text = "$winRate%",
-                            style = Typography.displayLarge.copy(fontSize = 44.sp, fontWeight = FontWeight.Bold),
-                            color = Color.White
+                            style = Typography.displayLarge.copy(fontSize = 38.sp, fontWeight = FontWeight.Bold),
+                            color = TextPrimary
                         )
                         Text(
                             text = "OVERALL WIN RATE",
-                            style = Typography.labelSmall.copy(letterSpacing = 1.0.sp),
+                            style = Typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.8.sp),
                             color = TextMuted
                         )
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
 
                         // Visual progress bar
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(12.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color(0xFF091222))
-                                .border(1.dp, BorderHairline, RoundedCornerShape(6.dp))
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(SurfaceElevated)
                         ) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth(winRate / 100f)
-                                    .height(12.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(
-                                        Brush.horizontalGradient(
-                                            listOf(
-                                                Color(0xFFF5C928),
-                                                Color(0xFFFFE078)
-                                            )
-                                        )
-                                    )
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(AccentPrimary)
                             )
                         }
                     }
@@ -175,7 +175,7 @@ fun StatsScreen(
                 // 2. Metrics Grid
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     StatChip(
                         modifier = Modifier.weight(1f),
@@ -197,20 +197,24 @@ fun StatsScreen(
 
                 // 3. In-Game Feats
                 Text(
-                    text = "IN-GAME FEATS",
-                    style = Typography.labelLarge.copy(letterSpacing = 1.0.sp),
+                    text = "CAREER FEATS",
+                    style = Typography.labelLarge.copy(
+                        fontSize = 11.sp,
+                        letterSpacing = 1.0.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
                     color = AccentPrimary,
-                    modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                    modifier = Modifier.padding(start = 2.dp)
                 )
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     FeatCard(
                         modifier = Modifier.weight(1f),
                         icon = Icons.Outlined.MilitaryTech,
-                        label = "Tokens Captured",
+                        label = "Pawns Captured",
                         value = totalCaptures.toString()
                     )
                     FeatCard(
@@ -227,19 +231,23 @@ fun StatsScreen(
                     val currentRerolls = gamePreferences?.luckyRerollsCount ?: 0
 
                     Text(
-                        text = "TOURNAMENT REWARDS VAULT",
-                        style = Typography.labelLarge.copy(letterSpacing = 1.0.sp),
+                        text = "BONUS PERKS SUPPLY",
+                        style = Typography.labelLarge.copy(
+                            fontSize = 11.sp,
+                            letterSpacing = 1.0.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
                         color = AccentPrimary,
-                        modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                        modifier = Modifier.padding(start = 2.dp)
                     )
 
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF0D1D38))
-                            .border(1.dp, GoldHighlight.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                            .background(SurfaceCard)
+                            .border(1.dp, BorderHairline, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -249,16 +257,16 @@ fun StatsScreen(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(38.dp)
+                                    .size(36.dp)
                                     .clip(CircleShape)
-                                    .background(StarGold.copy(alpha = 0.2f)),
+                                    .background(SurfaceElevated),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Outlined.Stars,
                                     contentDescription = null,
                                     tint = StarGold,
-                                    modifier = Modifier.size(22.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                             Spacer(modifier = Modifier.width(10.dp))
@@ -266,13 +274,13 @@ fun StatsScreen(
                                 Text(
                                     text = "FREE BONUS SUPPLY",
                                     style = Typography.labelMedium.copy(
-                                        letterSpacing = 0.8.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
                                     ),
                                     color = StarGold
                                 )
                                 Text(
-                                    text = "Watch short video for +500 XP & 1 Reroll ($currentPoints XP, $currentRerolls Rerolls)",
+                                    text = "+500 XP & 1 Reroll ($currentPoints XP, $currentRerolls Rerolls)",
                                     style = Typography.labelSmall.copy(fontSize = 11.sp),
                                     color = TextSecondary
                                 )
@@ -286,20 +294,20 @@ fun StatsScreen(
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(AccentPrimary)
                                 .clickable { onWatchRewardAd() }
-                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     imageVector = Icons.Outlined.VideoLibrary,
                                     contentDescription = null,
-                                    tint = Color(0xFF080F22),
-                                    modifier = Modifier.size(16.dp)
+                                    tint = Color(0xFF090E1A),
+                                    modifier = Modifier.size(15.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "Claim",
-                                    style = Typography.labelLarge.copy(fontSize = 12.sp, fontWeight = FontWeight.Bold),
-                                    color = Color(0xFF080F22)
+                                    style = Typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                                    color = Color(0xFF090E1A)
                                 )
                             }
                         }
@@ -312,29 +320,28 @@ fun StatsScreen(
                     placementKey = com.example.ludo.ads.AdConstants.KEY_NATIVE_STATS
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
-
                 // Reset Button
                 GameButton(
                     text = "Reset All Stats",
                     onClick = { showResetDialog = true },
                     style = GameButtonStyle.SECONDARY_GLASS,
                     icon = Icons.Outlined.DeleteOutline,
+                    height = 46.dp,
                     testTag = "reset_stats_button"
                 )
 
                 BannerAdView(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp, bottom = 4.dp),
+                        .padding(top = 4.dp, bottom = 2.dp),
                     placementKey = com.example.ludo.ads.AdConstants.KEY_BANNER_STATS,
                     hasCardContainer = true,
                     cornerRadius = 14.dp,
-                    containerBackground = Color(0xFF0D1D38),
-                    containerBorderColor = Color(0xFF293B5B)
+                    containerBackground = SurfaceCard,
+                    containerBorderColor = BorderHairline
                 )
 
-                AppFooter(modifier = Modifier.padding(top = 8.dp, bottom = 16.dp))
+                AppFooter(modifier = Modifier.padding(top = 6.dp, bottom = 12.dp))
             }
         }
 
@@ -369,7 +376,7 @@ fun StatsScreen(
             }
         ) {
             Text(
-                text = "This will permanently clear your match telemetry and feat counts.",
+                text = "This will permanently clear your match records and achievement counts.",
                 style = Typography.bodyMedium,
                 color = TextSecondary,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -385,36 +392,41 @@ private fun FeatCard(
     label: String,
     value: String
 ) {
-    GlassCard(modifier = modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(SurfaceCard)
+            .border(1.dp, BorderHairline, RoundedCornerShape(12.dp))
+            .padding(14.dp)
+    ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
                 modifier = Modifier
-                    .size(38.dp)
+                    .size(36.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF091428))
-                    .border(1.dp, BorderHairline, CircleShape),
+                    .background(SurfaceElevated),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
                     tint = AccentPrimary,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(18.dp)
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = value,
-                style = Typography.titleLarge.copy(fontSize = 22.sp, fontWeight = FontWeight.Bold),
-                color = Color.White
+                style = Typography.titleLarge.copy(fontSize = 20.sp, fontWeight = FontWeight.Bold),
+                color = TextPrimary
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = label.uppercase(),
-                style = Typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.5.sp),
+                style = Typography.labelSmall.copy(fontSize = 9.sp, letterSpacing = 0.5.sp),
                 color = TextMuted
             )
         }

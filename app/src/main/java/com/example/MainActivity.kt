@@ -63,6 +63,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        LudoAds.setCurrentActivity(this)
         soundManager = SoundManager(this)
         gamePreferences = GamePreferences(this)
         soundManager.isSoundEnabled = gamePreferences.isSoundEnabled
@@ -94,6 +95,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        LudoAds.setCurrentActivity(this)
         if (::soundManager.isInitialized) {
             soundManager.resumeMusic()
         }
@@ -108,8 +110,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        LudoAds.clearCurrentActivity(this)
         if (::soundManager.isInitialized) {
-            soundManager.stopBackgroundMusic()
+            soundManager.release()
         }
     }
 }
@@ -130,6 +133,11 @@ fun LudoAppContent(
 
     LaunchedEffect(currentScreen) {
         LudoAds.setGameActive(currentScreen == Screen.GAME)
+        if (currentScreen == Screen.GAME) {
+            soundManager.pauseMusic()
+        } else if (gamePreferences.isMusicEnabled) {
+            soundManager.resumeMusic()
+        }
         if (currentScreen != Screen.VICTORY) {
             isDoubleRewardClaimed = false
         }
@@ -186,7 +194,19 @@ fun LudoAppContent(
                         LudoAds.showRewardedAd(
                             activity = act,
                             onRewardEarned = {
+                                gamePreferences.addCoins(50)
                                 gamePreferences.addBonusReward(500)
+                            },
+                            onAdClosed = {}
+                        )
+                    }
+                },
+                onRecoverStreakAd = {
+                    activity?.let { act ->
+                        LudoAds.showRewardedAd(
+                            activity = act,
+                            onRewardEarned = {
+                                gamePreferences.recoverStreakWithAd()
                             },
                             onAdClosed = {}
                         )
@@ -231,6 +251,18 @@ fun LudoAppContent(
             ColorSelectionScreen(
                 playerCount = selectedPlayerCount,
                 initialNames = savedNames,
+                gamePreferences = gamePreferences,
+                onWatchRewardAd = {
+                    activity?.let { act ->
+                        LudoAds.showRewardedAd(
+                            activity = act,
+                            onRewardEarned = {
+                                gamePreferences.addCoins(50)
+                            },
+                            onAdClosed = {}
+                        )
+                    }
+                },
                 onBackClick = {
                     soundManager.playButtonTap()
                     currentScreen = Screen.PLAYER_COUNT
@@ -269,6 +301,18 @@ fun LudoAppContent(
 
             BotSetupScreen(
                 initialUserName = defaultUserName,
+                gamePreferences = gamePreferences,
+                onWatchRewardAd = {
+                    activity?.let { act ->
+                        LudoAds.showRewardedAd(
+                            activity = act,
+                            onRewardEarned = {
+                                gamePreferences.addCoins(50)
+                            },
+                            onAdClosed = {}
+                        )
+                    }
+                },
                 onBackClick = {
                     soundManager.playButtonTap()
                     currentScreen = Screen.HOME
@@ -327,6 +371,11 @@ fun LudoAppContent(
                     val totalCaptures = finalState.players.sumOf { it.capturesCount }
                     val totalSixes = finalState.players.sumOf { it.sixesCount }
                     gamePreferences.recordMatchFinished(isHumanWinner, totalCaptures, totalSixes)
+                    if (isHumanWinner) {
+                        if (!gamePreferences.consumeFirstMatchDoubleIfActive()) {
+                            gamePreferences.addCoins(25)
+                        }
+                    }
                     gamePreferences.clearSavedGame()
                     hasSavedMatch = false
                     if (activity != null && com.example.ludo.ads.RemoteConfigManager.isInterstitialMatchEndEnabled()) {
@@ -355,7 +404,8 @@ fun LudoAppContent(
                             name = p.name,
                             color = p.color,
                             isBot = p.isBot,
-                            botDifficulty = p.botDifficulty
+                            botDifficulty = p.botDifficulty,
+                            customSkinId = p.customSkinId
                         )
                     }
                     val resetState = GameState(
@@ -374,6 +424,7 @@ fun LudoAppContent(
                         LudoAds.showRewardedAd(
                             activity = act,
                             onRewardEarned = {
+                                gamePreferences.addCoins(50)
                                 gamePreferences.addBonusReward(500)
                             },
                             onAdClosed = {}
@@ -401,6 +452,7 @@ fun LudoAppContent(
                         LudoAds.showRewardedInterstitialAd(
                             activity = activity,
                             onRewardEarned = {
+                                gamePreferences.addCoins(50)
                                 gamePreferences.addBonusReward(1000)
                                 isDoubleRewardClaimed = true
                             },
@@ -416,7 +468,8 @@ fun LudoAppContent(
                             name = p.name,
                             color = p.color,
                             isBot = p.isBot,
-                            botDifficulty = p.botDifficulty
+                            botDifficulty = p.botDifficulty,
+                            customSkinId = p.customSkinId
                         )
                     }
                     val resetState = GameState(

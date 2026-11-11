@@ -2,7 +2,14 @@ package com.example.ludo.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.example.ludo.model.BoardThemeCatalog
+import com.example.ludo.model.DailyClaimResult
+import com.example.ludo.model.DailyRewardStatus
+import com.example.ludo.model.DailyRewardSystem
 import com.example.ludo.model.GameState
+import com.example.ludo.model.MysteryReward
+import com.example.ludo.model.MysteryRewardType
+import com.example.ludo.model.PawnColorCatalog
 import com.example.ludo.model.Player
 import com.example.ludo.model.PlayerColor
 import com.example.ludo.model.Token
@@ -282,6 +289,253 @@ class GamePreferences(context: Context) {
         }
     }
 
+    // In-game Coin Economy (50 coins start, +50 per rewarded ad, 25/color, 150/theme)
+    var coinsBalance: Int
+        get() = prefs.getInt(KEY_COINS_BALANCE, 50)
+        set(value) = prefs.edit().putInt(KEY_COINS_BALANCE, value.coerceAtLeast(0)).apply()
+
+    fun addCoins(amount: Int) {
+        if (amount <= 0) return
+        coinsBalance += amount
+    }
+
+    fun spendCoins(amount: Int): Boolean {
+        if (amount <= 0) return false
+        val current = coinsBalance
+        if (current < amount) return false
+        coinsBalance = current - amount
+        return true
+    }
+
+    // Unlimited Passes (granted via Day 7 Mystery Box)
+    var hasUnlimitedPawnColorsPass: Boolean
+        get() = prefs.getBoolean(KEY_PASS_UNLIMITED_COLORS, false)
+        set(value) = prefs.edit().putBoolean(KEY_PASS_UNLIMITED_COLORS, value).apply()
+
+    var hasUnlimitedBoardThemesPass: Boolean
+        get() = prefs.getBoolean(KEY_PASS_UNLIMITED_THEMES, false)
+        set(value) = prefs.edit().putBoolean(KEY_PASS_UNLIMITED_THEMES, value).apply()
+
+    // Pawn Color Unlocks (25 coins each)
+    fun getUnlockedPawnColorIds(): Set<String> {
+        val defaultSet = setOf("classic_red", "classic_green", "classic_yellow", "classic_blue")
+        val saved = prefs.getStringSet(KEY_UNLOCKED_PAWN_COLORS, null) ?: emptySet()
+        return defaultSet + saved
+    }
+
+    fun isPawnColorUnlocked(skinId: String): Boolean {
+        if (hasUnlimitedPawnColorsPass) return true
+        val skin = PawnColorCatalog.getSkinById(skinId) ?: return false
+        if (skin.isDefaultUnlocked) return true
+        return getUnlockedPawnColorIds().contains(skinId)
+    }
+
+    fun unlockPawnColor(skinId: String): Boolean {
+        if (isPawnColorUnlocked(skinId)) return true
+        val skin = PawnColorCatalog.getSkinById(skinId) ?: return false
+        if (spendCoins(skin.priceCoins)) {
+            val current = getUnlockedPawnColorIds().toMutableSet()
+            current.add(skinId)
+            prefs.edit().putStringSet(KEY_UNLOCKED_PAWN_COLORS, current).apply()
+            return true
+        }
+        return false
+    }
+
+    // Board Theme Customization (150 coins each)
+    var selectedBoardThemeId: String
+        get() = prefs.getString(KEY_SELECTED_BOARD_THEME, BoardThemeCatalog.THEME_ROYAL_NAVY.id) ?: BoardThemeCatalog.THEME_ROYAL_NAVY.id
+        set(value) = prefs.edit().putString(KEY_SELECTED_BOARD_THEME, value).apply()
+
+    fun getUnlockedBoardThemeIds(): Set<String> {
+        val defaultSet = setOf(BoardThemeCatalog.THEME_ROYAL_NAVY.id)
+        val saved = prefs.getStringSet(KEY_UNLOCKED_BOARD_THEMES, null) ?: emptySet()
+        return defaultSet + saved
+    }
+
+    fun isBoardThemeUnlocked(themeId: String): Boolean {
+        if (hasUnlimitedBoardThemesPass) return true
+        val theme = BoardThemeCatalog.getThemeById(themeId)
+        if (theme.isDefaultUnlocked) return true
+        return getUnlockedBoardThemeIds().contains(themeId)
+    }
+
+    fun unlockBoardTheme(themeId: String): Boolean {
+        if (isBoardThemeUnlocked(themeId)) return true
+        val theme = BoardThemeCatalog.getThemeById(themeId)
+        if (spendCoins(theme.priceCoins)) {
+            val current = getUnlockedBoardThemeIds().toMutableSet()
+            current.add(themeId)
+            prefs.edit().putStringSet(KEY_UNLOCKED_BOARD_THEMES, current).apply()
+            return true
+        }
+        return false
+    }
+
+    // 7-Day Consecutive Daily Login System
+    var dailyStreakDay: Int
+        get() = prefs.getInt(KEY_DAILY_STREAK_DAY, 1).coerceIn(1, 7)
+        set(value) = prefs.edit().putInt(KEY_DAILY_STREAK_DAY, value.coerceIn(1, 7)).apply()
+
+    var lastDailyClaimTimestamp: Long
+        get() = prefs.getLong(KEY_LAST_DAILY_CLAIM, 0L)
+        set(value) = prefs.edit().putLong(KEY_LAST_DAILY_CLAIM, value).apply()
+
+    fun getDailyRewardStatus(): DailyRewardStatus {
+        val now = System.currentTimeMillis()
+        val lastClaim = lastDailyClaimTimestamp
+        val currentDay = dailyStreakDay
+        val tier = DailyRewardSystem.getTierForDay(currentDay)
+
+        if (lastClaim == 0L) {
+            return DailyRewardStatus(
+                currentStreakDay = currentDay,
+                canClaim = true,
+                isStreakAtRisk = false,
+                timeRemainingMs = 0L,
+                lastClaimTimestamp = 0L,
+                nextRewardAmount = tier.coinReward
+            )
+        }
+
+        val elapsed = now - lastClaim
+        val claimCooldownMs = 20 * 3600 * 1000L // 20 hours cooldown
+        val streakExpiryMs = 48 * 3600 * 1000L  // 48 hours to preserve streak
+
+        return when {
+            elapsed < claimCooldownMs -> {
+                DailyRewardStatus(
+                    currentStreakDay = currentDay,
+                    canClaim = false,
+                    isStreakAtRisk = false,
+                    timeRemainingMs = claimCooldownMs - elapsed,
+                    lastClaimTimestamp = lastClaim,
+                    nextRewardAmount = tier.coinReward
+                )
+            }
+            elapsed <= streakExpiryMs -> {
+                DailyRewardStatus(
+                    currentStreakDay = currentDay,
+                    canClaim = true,
+                    isStreakAtRisk = false,
+                    timeRemainingMs = 0L,
+                    lastClaimTimestamp = lastClaim,
+                    nextRewardAmount = tier.coinReward
+                )
+            }
+            else -> {
+                // Missed claim window
+                DailyRewardStatus(
+                    currentStreakDay = currentDay,
+                    canClaim = false,
+                    isStreakAtRisk = true,
+                    timeRemainingMs = 0L,
+                    lastClaimTimestamp = lastClaim,
+                    nextRewardAmount = tier.coinReward
+                )
+            }
+        }
+    }
+
+    fun claimDailyReward(): DailyClaimResult? {
+        val status = getDailyRewardStatus()
+        if (!status.canClaim) return null
+
+        val now = System.currentTimeMillis()
+        val day = dailyStreakDay
+        val tier = DailyRewardSystem.getTierForDay(day)
+
+        var coinsAwarded = 0
+        var mysteryReward: MysteryReward? = null
+
+        if (tier.isMysteryBox) {
+            // Day 7: roll mystery box
+            val mystery = DailyRewardSystem.rollMysteryBoxReward()
+            mysteryReward = mystery
+            when (mystery.type) {
+                MysteryRewardType.UNLIMITED_BOTH -> {
+                    hasUnlimitedPawnColorsPass = true
+                    hasUnlimitedBoardThemesPass = true
+                }
+                MysteryRewardType.UNLIMITED_THEMES -> {
+                    hasUnlimitedBoardThemesPass = true
+                }
+                MysteryRewardType.UNLIMITED_COLORS -> {
+                    hasUnlimitedPawnColorsPass = true
+                }
+                MysteryRewardType.COINS_100 -> {
+                    coinsAwarded = 100
+                    addCoins(100)
+                }
+                MysteryRewardType.BETTER_LUCK -> {
+                    coinsAwarded = 5
+                    addCoins(5)
+                }
+            }
+            // Reset streak after Day 7 completion
+            dailyStreakDay = 1
+        } else {
+            // Days 1 through 6
+            coinsAwarded = tier.coinReward
+            addCoins(coinsAwarded)
+            dailyStreakDay = (day + 1).coerceAtMost(7)
+        }
+
+        lastDailyClaimTimestamp = now
+        return DailyClaimResult(
+            dayClaimed = day,
+            coinsEarned = coinsAwarded,
+            mysteryReward = mysteryReward,
+            newStreakDay = dailyStreakDay
+        )
+    }
+
+    fun recoverStreakWithAd(): Boolean {
+        val now = System.currentTimeMillis()
+        // Reset timestamp so claim becomes active for today without losing current day's streak
+        lastDailyClaimTimestamp = now - (20 * 3600 * 1000L + 1000L)
+        return true
+    }
+
+    data class WelcomeBonusResult(
+        val coinsAwarded: Int = 100,
+        val freeSkinUnlocked: String = "ruby_royal",
+        val freeSkinName: String = "Ruby Royal",
+        val firstMatchDoubleBounty: Boolean = true
+    )
+
+    var isWelcomeBonusClaimed: Boolean
+        get() = prefs.getBoolean(KEY_WELCOME_BONUS_CLAIMED, false)
+        set(value) = prefs.edit().putBoolean(KEY_WELCOME_BONUS_CLAIMED, value).apply()
+
+    var isFirstMatchDoubleActive: Boolean
+        get() = prefs.getBoolean(KEY_FIRST_MATCH_DOUBLE_ACTIVE, false)
+        set(value) = prefs.edit().putBoolean(KEY_FIRST_MATCH_DOUBLE_ACTIVE, value).apply()
+
+    fun claimWelcomeBonus(): WelcomeBonusResult {
+        if (isWelcomeBonusClaimed) {
+            return WelcomeBonusResult(coinsAwarded = 0)
+        }
+        addCoins(100)
+        val currentSkins = getUnlockedPawnColorIds().toMutableSet()
+        currentSkins.add("ruby_royal")
+        prefs.edit()
+            .putStringSet(KEY_UNLOCKED_PAWN_COLORS, currentSkins)
+            .putBoolean(KEY_WELCOME_BONUS_CLAIMED, true)
+            .putBoolean(KEY_FIRST_MATCH_DOUBLE_ACTIVE, true)
+            .apply()
+        return WelcomeBonusResult()
+    }
+
+    fun consumeFirstMatchDoubleIfActive(): Boolean {
+        if (isFirstMatchDoubleActive) {
+            isFirstMatchDoubleActive = false
+            addCoins(100)
+            return true
+        }
+        return false
+    }
+
     companion object {
         private const val KEY_SOUND = "key_sound_enabled"
         private const val KEY_MUSIC = "key_music_enabled"
@@ -298,5 +552,15 @@ class GamePreferences(context: Context) {
         private const val KEY_STATS_SIXES = "key_stats_sixes"
         private const val KEY_BONUS_POINTS = "key_bonus_points"
         private const val KEY_LUCKY_REROLLS = "key_lucky_rerolls"
+        private const val KEY_COINS_BALANCE = "key_coins_balance"
+        private const val KEY_UNLOCKED_PAWN_COLORS = "key_unlocked_pawn_colors"
+        private const val KEY_UNLOCKED_BOARD_THEMES = "key_unlocked_board_themes"
+        private const val KEY_SELECTED_BOARD_THEME = "key_selected_board_theme"
+        private const val KEY_PASS_UNLIMITED_COLORS = "key_pass_unlimited_colors"
+        private const val KEY_PASS_UNLIMITED_THEMES = "key_pass_unlimited_themes"
+        private const val KEY_DAILY_STREAK_DAY = "key_daily_streak_day"
+        private const val KEY_LAST_DAILY_CLAIM = "key_last_daily_claim"
+        private const val KEY_WELCOME_BONUS_CLAIMED = "key_welcome_bonus_claimed"
+        private const val KEY_FIRST_MATCH_DOUBLE_ACTIVE = "key_first_match_double_active"
     }
 }

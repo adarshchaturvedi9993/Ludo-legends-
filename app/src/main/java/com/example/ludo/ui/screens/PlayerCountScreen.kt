@@ -3,6 +3,8 @@ package com.example.ludo.ui.screens
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -37,18 +40,21 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ludo.ads.BannerAdView
 import com.example.ludo.ui.components.GameBackground
 import com.example.ludo.ui.components.GameButton
 import com.example.ludo.ui.components.GameButtonStyle
 import com.example.ludo.ui.components.GameTopBar
-import com.example.ludo.ui.components.GlassCard
 import com.example.ui.theme.AccentPrimary
 import com.example.ui.theme.BorderHairline
 import com.example.ui.theme.LudoBlue
 import com.example.ui.theme.LudoGreen
 import com.example.ui.theme.LudoRed
 import com.example.ui.theme.LudoYellow
+import com.example.ui.theme.SurfaceCard
+import com.example.ui.theme.SurfaceElevated
 import com.example.ui.theme.TextMuted
+import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.Typography
 
@@ -115,31 +121,46 @@ fun PlayerCountScreen(
                     onBackClick = onBackClick
                 )
 
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "SELECT PLAYERS",
-                    style = Typography.headlineMedium,
-                    color = Color.White
+                    text = "SELECT CONTENDERS",
+                    style = Typography.labelLarge.copy(
+                        fontSize = 12.sp,
+                        letterSpacing = 1.0.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = AccentPrimary
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(3.dp))
                 Text(
                     text = "Choose how many contenders will participate locally.",
                     style = Typography.bodyMedium,
                     color = TextSecondary
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     options.forEach { option ->
                         val isSelected = selectedCount == option.count
 
-                        GlassCard(
-                            modifier = Modifier.fillMaxWidth(),
-                            isActive = isSelected,
-                            activeBorderColor = AccentPrimary,
-                            onClick = { selectedCount = option.count }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (isSelected) SurfaceElevated else SurfaceCard)
+                                .border(
+                                    width = if (isSelected) 1.5.dp else 1.dp,
+                                    color = if (isSelected) AccentPrimary else BorderHairline,
+                                    shape = RoundedCornerShape(14.dp)
+                                )
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = ripple(bounded = true, color = AccentPrimary),
+                                    onClick = { selectedCount = option.count }
+                                )
+                                .padding(14.dp)
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -151,20 +172,23 @@ fun PlayerCountScreen(
                                     modifier = Modifier.size(46.dp)
                                 )
 
-                                Spacer(modifier = Modifier.width(16.dp))
+                                Spacer(modifier = Modifier.width(14.dp))
 
                                 Column(modifier = Modifier.weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
                                             text = option.title,
-                                            style = Typography.titleLarge.copy(fontSize = 17.sp, fontWeight = FontWeight.Bold),
-                                            color = if (isSelected) AccentPrimary else Color.White
+                                            style = Typography.titleMedium.copy(
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.Bold
+                                            ),
+                                            color = if (isSelected) AccentPrimary else TextPrimary
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Box(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(4.dp))
-                                                .background(if (isSelected) AccentPrimary.copy(alpha = 0.2f) else Color(0xFF080F22))
+                                                .background(if (isSelected) AccentPrimary.copy(alpha = 0.2f) else SurfaceCard)
                                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                                         ) {
                                             Text(
@@ -186,13 +210,13 @@ fun PlayerCountScreen(
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.width(12.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
 
                                 Box(
                                     modifier = Modifier
                                         .size(24.dp)
                                         .clip(CircleShape)
-                                        .background(if (isSelected) AccentPrimary else Color(0xFF080F22))
+                                        .background(if (isSelected) AccentPrimary else SurfaceCard)
                                         .border(1.dp, if (isSelected) AccentPrimary else BorderHairline, CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -200,7 +224,7 @@ fun PlayerCountScreen(
                                         Icon(
                                             imageVector = Icons.Default.Check,
                                             contentDescription = null,
-                                            tint = Color(0xFF080F22),
+                                            tint = Color(0xFF090E1A),
                                             modifier = Modifier.size(14.dp)
                                         )
                                     }
@@ -211,7 +235,7 @@ fun PlayerCountScreen(
                 }
             }
 
-            Column(modifier = Modifier.padding(bottom = 12.dp)) {
+            Column(modifier = Modifier.padding(bottom = 8.dp)) {
                 GameButton(
                     text = "Continue: Names & Colors",
                     onClick = { onContinue(selectedCount) },
@@ -220,13 +244,13 @@ fun PlayerCountScreen(
                     testTag = "continue_to_customization_button"
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                com.example.ludo.ads.BannerAdView(
+                BannerAdView(
                     modifier = Modifier.fillMaxWidth(),
                     placementKey = com.example.ludo.ads.AdConstants.KEY_BANNER_LOBBY,
                     hasCardContainer = true,
                     cornerRadius = 14.dp,
-                    containerBackground = Color(0xFF0D1D38),
-                    containerBorderColor = Color(0xFF293B5B)
+                    containerBackground = SurfaceCard,
+                    containerBorderColor = BorderHairline
                 )
             }
         }
@@ -248,7 +272,7 @@ private fun MiniBoardQuadrantDiagram(
         val quadH = (h - gap) / 2f
 
         drawRoundRect(
-            color = if (isSelected) Color(0xFF152441) else Color(0xFF080F22),
+            color = if (isSelected) SurfaceElevated else SurfaceCard,
             topLeft = Offset.Zero,
             size = size,
             cornerRadius = CornerRadius(cornerRadius * 1.5f, cornerRadius * 1.5f)
@@ -256,7 +280,7 @@ private fun MiniBoardQuadrantDiagram(
 
         val tlActive = activeQuadrants.contains(PlayerQuadrant.TOP_LEFT)
         drawRoundRect(
-            color = if (tlActive) PlayerQuadrant.TOP_LEFT.color else Color(0xFF1D2C43),
+            color = if (tlActive) PlayerQuadrant.TOP_LEFT.color else Color(0xFF1E2B42),
             topLeft = Offset(0f, 0f),
             size = Size(quadW, quadH),
             cornerRadius = CornerRadius(cornerRadius, cornerRadius)
@@ -264,7 +288,7 @@ private fun MiniBoardQuadrantDiagram(
 
         val trActive = activeQuadrants.contains(PlayerQuadrant.TOP_RIGHT)
         drawRoundRect(
-            color = if (trActive) PlayerQuadrant.TOP_RIGHT.color else Color(0xFF1D2C43),
+            color = if (trActive) PlayerQuadrant.TOP_RIGHT.color else Color(0xFF1E2B42),
             topLeft = Offset(quadW + gap, 0f),
             size = Size(quadW, quadH),
             cornerRadius = CornerRadius(cornerRadius, cornerRadius)
@@ -272,7 +296,7 @@ private fun MiniBoardQuadrantDiagram(
 
         val blActive = activeQuadrants.contains(PlayerQuadrant.BOTTOM_LEFT)
         drawRoundRect(
-            color = if (blActive) PlayerQuadrant.BOTTOM_LEFT.color else Color(0xFF1D2C43),
+            color = if (blActive) PlayerQuadrant.BOTTOM_LEFT.color else Color(0xFF1E2B42),
             topLeft = Offset(0f, quadH + gap),
             size = Size(quadW, quadH),
             cornerRadius = CornerRadius(cornerRadius, cornerRadius)
@@ -280,14 +304,14 @@ private fun MiniBoardQuadrantDiagram(
 
         val brActive = activeQuadrants.contains(PlayerQuadrant.BOTTOM_RIGHT)
         drawRoundRect(
-            color = if (brActive) PlayerQuadrant.BOTTOM_RIGHT.color else Color(0xFF1D2C43),
+            color = if (brActive) PlayerQuadrant.BOTTOM_RIGHT.color else Color(0xFF1E2B42),
             topLeft = Offset(quadW + gap, quadH + gap),
             size = Size(quadW, quadH),
             cornerRadius = CornerRadius(cornerRadius, cornerRadius)
         )
 
         drawCircle(
-            color = if (isSelected) AccentPrimary else Color(0xFF34435A),
+            color = if (isSelected) AccentPrimary else Color(0xFF334666),
             radius = 3.dp.toPx(),
             center = Offset(w / 2f, h / 2f)
         )

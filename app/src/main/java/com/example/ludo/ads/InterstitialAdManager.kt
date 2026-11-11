@@ -15,7 +15,7 @@ import java.util.Date
 
 /**
  * Manages loading and showing of Interstitial Ads with natural placement,
- * cooldowns, retry backoff, and diagnostics tracking.
+ * cooldowns, retry backoff, fallback test IDs, and diagnostics tracking.
  */
 class InterstitialAdManager(private val context: Context) {
 
@@ -28,7 +28,15 @@ class InterstitialAdManager(private val context: Context) {
     val isLoaded: Boolean
         get() = interstitialAd != null
 
-    fun loadAd(onLoaded: (() -> Unit)? = null) {
+    fun loadAd(activityContext: Context? = null, forceReload: Boolean = false, onLoaded: (() -> Unit)? = null) {
+        val ctx = activityContext ?: LudoAds.currentActivity ?: context
+
+        if (forceReload) {
+            interstitialAd = null
+            isLoading = false
+            retryCount = 0
+        }
+
         if (isLoading || interstitialAd != null) {
             if (interstitialAd != null) onLoaded?.invoke()
             return
@@ -46,7 +54,7 @@ class InterstitialAdManager(private val context: Context) {
         Log.d(TAG, "[AdMob Request] Interstitial -> AdUnitId: $adUnitId (LiveMode=${RemoteConfigManager.isLiveMode()})")
 
         InterstitialAd.load(
-            context,
+            ctx,
             adUnitId,
             request,
             object : InterstitialAdLoadCallback() {
@@ -76,13 +84,60 @@ class InterstitialAdManager(private val context: Context) {
                         responseInfoSummary = loadAdError.responseInfo?.toString() ?: ""
                     )
 
+                    // If primary test interstitial unit had No Fill (code 3), try companion test video interstitial
+                    if (!RemoteConfigManager.isLiveMode() && adUnitId == AdConstants.TEST_INTERSTITIAL && retryCount == 0) {
+                        retryCount = 1
+                        mainHandler.postDelayed({
+                            loadFallbackTestAd(ctx, onLoaded)
+                        }, 1000L)
+                        return
+                    }
+
                     // Retry backoff
                     if (retryCount < 3) {
                         val delayMs = (5000L * (1 shl retryCount)).coerceAtMost(30000L)
                         retryCount++
                         Log.d(TAG, "Scheduling Interstitial retry #$retryCount in ${delayMs / 1000}s")
-                        mainHandler.postDelayed({ loadAd() }, delayMs)
+                        mainHandler.postDelayed({ loadAd(ctx) }, delayMs)
                     }
+                }
+            }
+        )
+    }
+
+    private fun loadFallbackTestAd(ctx: Context, onLoaded: (() -> Unit)?) {
+        if (isLoading || interstitialAd != null) return
+        isLoading = true
+        val fallbackId = AdConstants.TEST_INTERSTITIAL_VIDEO
+        AdDiagnosticsTracker.recordLoading("Interstitial", fallbackId)
+        val request = AdRequest.Builder().build()
+        InterstitialAd.load(
+            ctx,
+            fallbackId,
+            request,
+            object : InterstitialAdLoadCallback() {
+                override fun onAdLoaded(ad: InterstitialAd) {
+                    interstitialAd = ad
+                    isLoading = false
+                    retryCount = 0
+                    val responseSummary = ad.responseInfo.toString()
+                    Log.d(TAG, "[AdMob Loaded] Interstitial (Fallback) -> Success! $fallbackId")
+                    AdDiagnosticsTracker.recordLoaded("Interstitial", fallbackId, responseSummary)
+                    onLoaded?.invoke()
+                }
+
+                override fun onAdFailedToLoad(loadAdError: LoadAdError) {
+                    interstitialAd = null
+                    isLoading = false
+                    Log.w(TAG, "[AdMob Failed] Interstitial (Fallback) -> Code: ${loadAdError.code}")
+                    AdDiagnosticsTracker.recordFailed(
+                        format = "Interstitial",
+                        unitId = fallbackId,
+                        code = loadAdError.code,
+                        domain = loadAdError.domain,
+                        message = loadAdError.message,
+                        responseInfoSummary = loadAdError.responseInfo?.toString() ?: ""
+                    )
                 }
             }
         )
@@ -114,7 +169,7 @@ class InterstitialAdManager(private val context: Context) {
         val ad = interstitialAd
         if (ad == null) {
             Log.d(TAG, "Interstitial ad not ready; loading in background and proceeding.")
-            loadAd()
+            loadAd(activity)
             onAdClosed()
             return
         }
@@ -125,7 +180,7 @@ class InterstitialAdManager(private val context: Context) {
                 lastShownTime = Date().time
                 Log.d(TAG, "[AdMob Event] Interstitial ad dismissed.")
                 AdDiagnosticsTracker.recordDismissed("Interstitial")
-                loadAd()
+                loadAd(activity)
                 onAdClosed()
             }
 
@@ -139,7 +194,7 @@ class InterstitialAdManager(private val context: Context) {
                     domain = adError.domain,
                     message = adError.message
                 )
-                loadAd()
+                loadAd(activity)
                 onAdClosed()
             }
 

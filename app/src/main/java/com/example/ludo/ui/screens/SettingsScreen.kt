@@ -14,20 +14,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Accessibility
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Animation
 import androidx.compose.material.icons.outlined.AutoMode
+import androidx.compose.material.icons.outlined.Campaign
 import androidx.compose.material.icons.outlined.DeleteSweep
-import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.HourglassBottom
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Vibration
+import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -38,10 +39,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.material.icons.outlined.Campaign
-import androidx.compose.material.icons.outlined.VideoLibrary
-import com.example.ludo.ads.BannerAdView
-import com.example.ludo.ads.RemoteConfigManager
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,6 +47,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ludo.ads.BannerAdView
+import com.example.ludo.ads.RemoteConfigManager
 import com.example.ludo.audio.SoundManager
 import com.example.ludo.data.GamePreferences
 import com.example.ludo.ui.components.AppFooter
@@ -58,10 +57,10 @@ import com.example.ludo.ui.components.GameButton
 import com.example.ludo.ui.components.GameButtonStyle
 import com.example.ludo.ui.components.GameDialog
 import com.example.ludo.ui.components.GameTopBar
-import com.example.ludo.ui.components.GlassCard
 import com.example.ui.theme.AccentPrimary
 import com.example.ui.theme.BorderHairline
 import com.example.ui.theme.SurfaceBackground
+import com.example.ui.theme.SurfaceCard
 import com.example.ui.theme.SurfaceElevated
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
@@ -69,7 +68,7 @@ import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.Typography
 
 /**
- * Production Settings Screen:
+ * World-Class Settings Screen:
  * Audio, Haptics, Gameplay (Auto-move, Turn timer), Accessibility (Color-blind symbols, Reduce motion)
  */
 @Composable
@@ -99,7 +98,7 @@ fun SettingsScreen(
                 .testTag("settings_screen")
         ) {
             GameTopBar(
-                title = "Preferences",
+                title = "Settings",
                 onBackClick = onBackClick
             )
 
@@ -107,22 +106,33 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(scrollState)
-                    .padding(vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 // 1. Audio & Haptics Section
                 Text(
                     text = "AUDIO & FEEDBACK",
-                    style = Typography.labelLarge.copy(letterSpacing = 1.0.sp),
+                    style = Typography.labelLarge.copy(
+                        fontSize = 11.sp,
+                        letterSpacing = 1.0.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
                     color = AccentPrimary
                 )
 
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(SurfaceCard)
+                        .border(1.dp, BorderHairline, RoundedCornerShape(14.dp))
+                        .padding(14.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         SettingSwitchRow(
                             icon = Icons.AutoMirrored.Outlined.VolumeUp,
                             title = "Sound Effects",
-                            description = "Tactile clacks, roll bounces, and pop sounds",
+                            description = "Tactile clacks, roll bounces, and pawn steps",
                             checked = isSoundOn,
                             testTag = "sound_switch",
                             onCheckedChange = { checked ->
@@ -138,7 +148,7 @@ fun SettingsScreen(
                         SettingSwitchRow(
                             icon = Icons.Outlined.MusicNote,
                             title = "Background Music",
-                            description = "Calming ambient acoustic kalimba melody",
+                            description = "Relaxing ambient acoustic melody",
                             checked = isMusicOn,
                             testTag = "music_switch",
                             onCheckedChange = { checked ->
@@ -154,7 +164,7 @@ fun SettingsScreen(
                         SettingSwitchRow(
                             icon = Icons.Outlined.Vibration,
                             title = "Haptic Vibrations",
-                            description = "Tactile clicks on pawn pick, roll, and victory",
+                            description = "Tactile feedback on dice roll and capture",
                             checked = isHapticsOn,
                             testTag = "haptics_switch",
                             onCheckedChange = { checked ->
@@ -170,16 +180,27 @@ fun SettingsScreen(
                 // 2. Gameplay Controls Section
                 Text(
                     text = "GAMEPLAY MECHANICS",
-                    style = Typography.labelLarge.copy(letterSpacing = 1.0.sp),
+                    style = Typography.labelLarge.copy(
+                        fontSize = 11.sp,
+                        letterSpacing = 1.0.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
                     color = AccentPrimary
                 )
 
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(SurfaceCard)
+                        .border(1.dp, BorderHairline, RoundedCornerShape(14.dp))
+                        .padding(14.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         SettingSwitchRow(
                             icon = Icons.Outlined.AutoMode,
                             title = "Auto-Move Single Pawn",
-                            description = "Automatically moves pawn after 400ms if only 1 move is legal",
+                            description = "Automatically moves pawn if only 1 move is legal",
                             checked = isAutoMoveOn,
                             testTag = "auto_move_switch",
                             onCheckedChange = { checked ->
@@ -194,7 +215,7 @@ fun SettingsScreen(
                         SettingSwitchRow(
                             icon = Icons.Outlined.HourglassBottom,
                             title = "Turn Timer (15s)",
-                            description = "Circular ring countdown with automated action on timeout",
+                            description = "Countdown ring with auto-play on timeout",
                             checked = isTurnTimerOn,
                             testTag = "turn_timer_switch",
                             onCheckedChange = { checked ->
@@ -209,16 +230,27 @@ fun SettingsScreen(
                 // 3. Accessibility Section
                 Text(
                     text = "ACCESSIBILITY & MOTION",
-                    style = Typography.labelLarge.copy(letterSpacing = 1.0.sp),
+                    style = Typography.labelLarge.copy(
+                        fontSize = 11.sp,
+                        letterSpacing = 1.0.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
                     color = AccentPrimary
                 )
 
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(SurfaceCard)
+                        .border(1.dp, BorderHairline, RoundedCornerShape(14.dp))
+                        .padding(14.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         SettingSwitchRow(
                             icon = Icons.Outlined.Visibility,
                             title = "Color-Blind Symbols",
-                            description = "Draws distinct symbols (● ▲ ■ ★) on pawns for clear identification",
+                            description = "Draws distinct symbols (● ▲ ■ ★) on pawns for identification",
                             checked = isColorBlindOn,
                             testTag = "color_blind_switch",
                             onCheckedChange = { checked ->
@@ -233,7 +265,7 @@ fun SettingsScreen(
                         SettingSwitchRow(
                             icon = Icons.Outlined.Animation,
                             title = "Reduce Motion",
-                            description = "Minimizes particle twinkling and high-frequency animations",
+                            description = "Minimizes particle effects and transitions",
                             checked = isReduceMotionOn,
                             testTag = "reduce_motion_switch",
                             onCheckedChange = { checked ->
@@ -248,11 +280,22 @@ fun SettingsScreen(
                 // 4. Data & Session Management
                 Text(
                     text = "DATA MANAGEMENT",
-                    style = Typography.labelLarge.copy(letterSpacing = 1.0.sp),
+                    style = Typography.labelLarge.copy(
+                        fontSize = 11.sp,
+                        letterSpacing = 1.0.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
                     color = AccentPrimary
                 )
 
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(SurfaceCard)
+                        .border(1.dp, BorderHairline, RoundedCornerShape(14.dp))
+                        .padding(14.dp)
+                ) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -262,23 +305,21 @@ fun SettingsScreen(
                                 imageVector = Icons.Outlined.Shield,
                                 contentDescription = null,
                                 tint = AccentPrimary,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
-                                Text("100% Offline & Private", style = Typography.bodyLarge, color = Color.White)
-                                Text("All state is safely stored in local device storage", style = Typography.bodyMedium, color = TextMuted)
+                                Text("Offline & Private", style = Typography.bodyLarge, color = TextPrimary)
+                                Text("Game data is stored locally on this device", style = Typography.bodyMedium.copy(fontSize = 11.sp), color = TextMuted)
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(4.dp))
 
                         GameButton(
                             text = "Clear Preserved Match",
                             onClick = { showClearSavedDialog = true },
                             style = GameButtonStyle.SECONDARY_GLASS,
                             icon = Icons.Outlined.DeleteSweep,
-                            height = 48.dp,
+                            height = 46.dp,
                             testTag = "clear_saved_game_button"
                         )
                     }
@@ -287,13 +328,24 @@ fun SettingsScreen(
                 // 5. Ad Network & Remote Config Support
                 val adConfig by RemoteConfigManager.configState.collectAsState()
                 Text(
-                    text = "ADS & REMOTE CONFIG",
-                    style = Typography.labelLarge.copy(letterSpacing = 1.0.sp),
+                    text = "ADS & ENGINE STATUS",
+                    style = Typography.labelLarge.copy(
+                        fontSize = 11.sp,
+                        letterSpacing = 1.0.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
                     color = AccentPrimary
                 )
 
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(SurfaceCard)
+                        .border(1.dp, BorderHairline, RoundedCornerShape(14.dp))
+                        .padding(14.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
@@ -302,45 +354,43 @@ fun SettingsScreen(
                                 imageVector = Icons.Outlined.Campaign,
                                 contentDescription = null,
                                 tint = AccentPrimary,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
                                 Text(
-                                    text = if (adConfig.isAdsEnabled) "AdMob Network: Active" else "AdMob Network: Disabled",
+                                    text = if (adConfig.isAdsEnabled) "Ad Engine: Active" else "Ad Engine: Disabled",
                                     style = Typography.bodyLarge,
-                                    color = Color.White
+                                    color = TextPrimary
                                 )
                                 Text(
-                                    text = if (adConfig.isLiveMode) "Mode: Live (Production IDs Active)" else "Mode: Test (Google Official Sample IDs)",
+                                    text = if (adConfig.isLiveMode) "Live Mode (Production)" else "Test Mode (Google Official Sample IDs)",
                                     style = Typography.bodyMedium.copy(fontSize = 11.sp),
-                                    color = if (adConfig.isLiveMode) Color(0xFF00E676) else TextMuted
+                                    color = TextMuted
                                 )
                             }
                         }
 
                         if (onWatchSupportAd != null && adConfig.isAdsEnabled) {
-                            Spacer(modifier = Modifier.height(2.dp))
                             GameButton(
-                                text = "Watch Bonus Video (Support Dev)",
+                                text = "Watch Bonus Video",
                                 subtitle = "+500 XP and 1 Lucky Reroll Perk",
                                 onClick = onWatchSupportAd,
                                 style = GameButtonStyle.SECONDARY_GLASS,
                                 icon = Icons.Outlined.VideoLibrary,
-                                height = 48.dp,
+                                height = 46.dp,
                                 testTag = "watch_support_ad_button"
                             )
                         }
 
                         if (onDiagnosticsClick != null) {
-                            Spacer(modifier = Modifier.height(2.dp))
                             GameButton(
-                                text = "Open Ad Diagnostics Monitor",
-                                subtitle = "Live status & test buttons for all 6 ad formats",
+                                text = "Ad Diagnostics Monitor",
+                                subtitle = "Real-time engine status & format tests",
                                 onClick = onDiagnosticsClick,
                                 style = GameButtonStyle.SECONDARY_GLASS,
                                 icon = Icons.Outlined.Visibility,
-                                height = 48.dp,
+                                height = 46.dp,
                                 testTag = "open_ad_diagnostics_button"
                             )
                         }
@@ -350,15 +400,15 @@ fun SettingsScreen(
                 BannerAdView(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 4.dp, bottom = 4.dp),
+                        .padding(top = 2.dp, bottom = 2.dp),
                     placementKey = com.example.ludo.ads.AdConstants.KEY_BANNER_SETTINGS,
                     hasCardContainer = true,
                     cornerRadius = 14.dp,
-                    containerBackground = Color(0xFF0D1D38),
-                    containerBorderColor = Color(0xFF293B5B)
+                    containerBackground = SurfaceCard,
+                    containerBorderColor = BorderHairline
                 )
 
-                AppFooter(modifier = Modifier.padding(top = 8.dp, bottom = 16.dp))
+                AppFooter(modifier = Modifier.padding(top = 6.dp, bottom = 12.dp))
             }
         }
 
@@ -420,11 +470,11 @@ private fun SettingSwitchRow(
                 imageVector = icon,
                 contentDescription = null,
                 tint = TextSecondary,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column {
-                Text(title, style = Typography.bodyLarge, color = Color.White)
+                Text(title, style = Typography.bodyLarge, color = TextPrimary)
                 Text(description, style = Typography.bodyMedium.copy(fontSize = 11.sp), color = TextMuted)
             }
         }

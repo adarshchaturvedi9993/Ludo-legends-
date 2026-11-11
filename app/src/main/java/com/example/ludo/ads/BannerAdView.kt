@@ -148,30 +148,15 @@ fun BannerAdView(
                         .clip(containerShape)
                         .background(containerBackground)
                         .border(1.dp, containerBorderColor, containerShape)
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        // Discreet attribution label
-                        Text(
-                            text = "SPONSORED",
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.8.sp,
-                            color = TextMuted.copy(alpha = 0.7f),
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-
-                        AndroidView(
-                            factory = { adView },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 50.dp)
-                        )
-                    }
+                    AndroidView(
+                        factory = { adView },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 50.dp)
+                    )
                 }
             } else {
                 AndroidView(

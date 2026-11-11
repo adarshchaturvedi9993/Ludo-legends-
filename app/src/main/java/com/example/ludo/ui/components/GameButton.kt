@@ -8,6 +8,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,7 +27,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -37,10 +37,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.AccentPrimary
 import com.example.ui.theme.BorderHairline
-import com.example.ui.theme.GoldHighlight
 import com.example.ui.theme.MotionSpec
 import com.example.ui.theme.StatusDanger
 import com.example.ui.theme.SurfaceElevated
+import com.example.ui.theme.TextMuted
+import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.Typography
 
 enum class GameButtonStyle {
@@ -50,8 +51,8 @@ enum class GameButtonStyle {
 }
 
 /**
- * Premium tournament game button with press-scale feedback (0.96),
- * metallic gold gradient or frosted glass styling, and haptic integration.
+ * Premium tournament game button with tactile press-scale feedback,
+ * high-contrast color styling, and haptic integration.
  */
 @Composable
 fun GameButton(
@@ -62,7 +63,7 @@ fun GameButton(
     icon: ImageVector? = null,
     trailingIcon: ImageVector? = null,
     subtitle: String? = null,
-    height: Dp = 56.dp,
+    height: Dp = 54.dp,
     enabled: Boolean = true,
     testTag: String = "game_button"
 ) {
@@ -71,62 +72,28 @@ fun GameButton(
     val haptic = LocalHapticFeedback.current
 
     val scale by animateFloatAsState(
-        targetValue = if (isPressed && enabled) 0.96f else 1.0f,
+        targetValue = if (isPressed && enabled) 0.97f else 1.0f,
         animationSpec = MotionSpec.springBouncy(),
         label = "btnScale"
     )
 
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(14.dp)
 
-    val (backgroundBrush, borderBrush, textColor, iconColor) = when (style) {
+    val (bgColor, borderColor, textColor, iconColor) = when (style) {
         GameButtonStyle.PRIMARY_GOLD -> {
-            val bg = if (enabled) {
-                Brush.horizontalGradient(
-                    listOf(
-                        Color(0xFFFFDF60),
-                        Color(0xFFF5B612),
-                        Color(0xFFE5A812)
-                    )
-                )
-            } else {
-                Brush.horizontalGradient(listOf(Color(0xFF4A4430), Color(0xFF383320)))
-            }
-            val border = if (enabled) {
-                Brush.horizontalGradient(listOf(Color(0xFFFFF7C0), Color(0xFFF5C928)))
-            } else {
-                Brush.horizontalGradient(listOf(Color(0xFF6B654E), Color(0xFF524C36)))
-            }
-            val txt = if (enabled) Color(0xFF080F22) else Color(0xFF9E9882)
+            val bg = if (enabled) AccentPrimary else Color(0xFF3D3014)
+            val border = if (enabled) Color(0xFFFBBF24) else Color(0xFF52421D)
+            val txt = if (enabled) Color(0xFF090E1A) else Color(0xFF8A7752)
             Tuple4(bg, border, txt, txt)
         }
         GameButtonStyle.SECONDARY_GLASS -> {
-            val bg = Brush.verticalGradient(
-                listOf(
-                    Color(0xFF132242),
-                    Color(0xFF0D172E)
-                )
-            )
-            val border = Brush.linearGradient(
-                listOf(
-                    if (isPressed) AccentPrimary else Color(0xFF3F5886),
-                    BorderHairline
-                )
-            )
-            Tuple4(bg, border, Color.White, AccentPrimary)
+            val bg = SurfaceElevated
+            val border = if (isPressed) AccentPrimary else BorderHairline
+            Tuple4(bg, border, TextPrimary, AccentPrimary)
         }
         GameButtonStyle.DANGER -> {
-            val bg = Brush.verticalGradient(
-                listOf(
-                    Color(0xFF3A1218),
-                    Color(0xFF220A0E)
-                )
-            )
-            val border = Brush.linearGradient(
-                listOf(
-                    StatusDanger,
-                    StatusDanger.copy(alpha = 0.5f)
-                )
-            )
+            val bg = Color(0xFF2A1015)
+            val border = StatusDanger.copy(alpha = 0.7f)
             Tuple4(bg, border, Color.White, StatusDanger)
         }
     }
@@ -137,8 +104,8 @@ fun GameButton(
             .fillMaxWidth()
             .height(height)
             .clip(shape)
-            .background(backgroundBrush)
-            .border(width = 1.5.dp, brush = borderBrush, shape = shape)
+            .background(bgColor)
+            .border(width = 1.2.dp, color = borderColor, shape = shape)
             .clickable(
                 interactionSource = interactionSource,
                 indication = ripple(bounded = true, color = if (style == GameButtonStyle.PRIMARY_GOLD) Color.Black else AccentPrimary),
@@ -148,7 +115,7 @@ fun GameButton(
                     onClick()
                 }
             )
-            .padding(horizontal = 20.dp)
+            .padding(horizontal = 18.dp)
             .testTag(testTag),
         contentAlignment = Alignment.Center
     ) {
@@ -162,21 +129,21 @@ fun GameButton(
                     imageVector = icon,
                     contentDescription = null,
                     tint = iconColor,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(20.dp)
                 )
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(8.dp))
             }
 
-            androidx.compose.foundation.layout.Column(
+            Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = text.uppercase(),
-                    style = Typography.titleLarge.copy(
-                        fontSize = if (subtitle != null) 16.sp else 17.sp,
+                    text = text,
+                    style = Typography.titleMedium.copy(
+                        fontSize = if (subtitle != null) 15.sp else 16.sp,
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.0.sp
+                        letterSpacing = 0.4.sp
                     ),
                     color = textColor
                 )
@@ -184,18 +151,18 @@ fun GameButton(
                     Text(
                         text = subtitle,
                         style = Typography.bodyMedium.copy(fontSize = 11.sp),
-                        color = textColor.copy(alpha = 0.8f)
+                        color = textColor.copy(alpha = 0.82f)
                     )
                 }
             }
 
             if (trailingIcon != null) {
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Icon(
                     imageVector = trailingIcon,
                     contentDescription = null,
                     tint = iconColor,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
