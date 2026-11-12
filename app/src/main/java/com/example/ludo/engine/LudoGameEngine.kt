@@ -10,7 +10,11 @@ import com.example.ludo.model.TokenState
 sealed class MoveOutcome {
     data class Moved(
         val capturedPlayerColor: PlayerColor? = null,
+        val capturedTokenId: Int? = null,
+        val capturedPlayerIndex: Int? = null,
         val tokenFinished: Boolean = false,
+        val finishedTokenId: Int? = null,
+        val finishOrder: Int = 0,
         val grantedExtraTurn: Boolean = false,
         val extraTurnReason: String? = null
     ) : MoveOutcome()
@@ -122,6 +126,8 @@ object LudoGameEngine {
 
         val updatedToken = computeNewTokenState(token, currentState.diceValue)
         var capturedColor: PlayerColor? = null
+        var capturedTokenId: Int? = null
+        var capturedPlayerIndex: Int? = null
         var isCaptured = false
 
         // Check for capture on the track
@@ -149,6 +155,8 @@ object LudoGameEngine {
                                 homeStep = 0
                             )
                             capturedColor = oppToken.color
+                            capturedTokenId = oppToken.id
+                            capturedPlayerIndex = pIdx
                             isCaptured = true
                             opponentChanged = true
                             break // Capture one token per landing
@@ -164,11 +172,14 @@ object LudoGameEngine {
         }
 
         // Update current player's token and statistics
+        val tokenFinished = updatedToken.isFinished && !token.isFinished
+        val nextFinishOrder = if (tokenFinished) currPlayer.tokens.count { it.isFinished } + 1 else 0
+        val finalToken = if (tokenFinished) updatedToken.copy(finishOrder = nextFinishOrder) else updatedToken
+
         val updatedTokens = currPlayer.tokens.toMutableList()
         val tokenIndex = updatedTokens.indexOfFirst { it.id == tokenId }
-        updatedTokens[tokenIndex] = updatedToken
+        updatedTokens[tokenIndex] = finalToken
 
-        val tokenFinished = updatedToken.isFinished && !token.isFinished
         val capturesAdded = if (isCaptured) 1 else 0
 
         val updatedCurrentPlayer = currPlayer.copy(
@@ -235,7 +246,11 @@ object LudoGameEngine {
 
         return updatedState to MoveOutcome.Moved(
             capturedPlayerColor = capturedColor,
+            capturedTokenId = capturedTokenId,
+            capturedPlayerIndex = capturedPlayerIndex,
             tokenFinished = tokenFinished,
+            finishedTokenId = if (tokenFinished) tokenId else null,
+            finishOrder = nextFinishOrder,
             grantedExtraTurn = !passTurn,
             extraTurnReason = reason
         )

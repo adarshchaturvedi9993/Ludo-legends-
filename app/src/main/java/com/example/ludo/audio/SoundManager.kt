@@ -2,7 +2,9 @@ package com.example.ludo.audio
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioTrack
 import android.media.MediaPlayer
 import android.media.SoundPool
@@ -20,7 +22,7 @@ import kotlin.math.sin
 /**
  * Audio and haptics manager for Ludo Legends.
  * Plays background music using ludo1.mp3 and realistic dice roll sounds using diceroll.mp3,
- * combined with tactile haptics and procedural game sonification.
+ * combined with tactile haptics, audio focus handling, and procedural game sonification.
  */
 class SoundManager(private val context: Context) {
 
@@ -37,6 +39,29 @@ class SoundManager(private val context: Context) {
                 pauseMusic()
             }
         }
+
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    private var hasAudioFocus = false
+    private var audioFocusRequest: AudioFocusRequest? = null
+
+    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS -> {
+                hasAudioFocus = false
+                pauseMusic()
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                pauseMusic()
+            }
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                hasAudioFocus = true
+                if (isMusicEnabled) {
+                    resumeMusic()
+                }
+            }
+        }
+    }
 
     private val vibrator: Vibrator? by lazy {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -86,12 +111,58 @@ class SoundManager(private val context: Context) {
         }
     }
 
+    private fun requestAudioFocus(): Boolean {
+        if (audioManager == null) return true
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_GAME)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .build()
+                    )
+                    .setOnAudioFocusChangeListener(audioFocusChangeListener)
+                    .build()
+                audioFocusRequest = req
+                val result = audioManager.requestAudioFocus(req)
+                hasAudioFocus = (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+            } else {
+                @Suppress("DEPRECATION")
+                val result = audioManager.requestAudioFocus(
+                    audioFocusChangeListener,
+                    AudioManager.STREAM_MUSIC,
+                    AudioManager.AUDIOFOCUS_GAIN
+                )
+                hasAudioFocus = (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+            }
+            hasAudioFocus
+        } catch (_: Exception) {
+            true
+        }
+    }
+
+    private fun abandonAudioFocus() {
+        if (audioManager == null) return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+                audioFocusRequest = null
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager.abandonAudioFocus(audioFocusChangeListener)
+            }
+            hasAudioFocus = false
+        } catch (_: Exception) {}
+    }
+
     // ==========================================
     // Background Music: ludo1.mp3
     // ==========================================
 
     fun startBackgroundMusic() {
         if (!isMusicEnabled) return
+        if (!requestAudioFocus()) return
         try {
             if (backgroundMediaPlayer == null) {
                 backgroundMediaPlayer = MediaPlayer.create(context, R.raw.ludo1)?.apply {
@@ -109,6 +180,7 @@ class SoundManager(private val context: Context) {
 
     fun resumeMusic() {
         if (!isMusicEnabled) return
+        if (!requestAudioFocus()) return
         try {
             if (backgroundMediaPlayer == null) {
                 startBackgroundMusic()
@@ -132,6 +204,7 @@ class SoundManager(private val context: Context) {
             backgroundMediaPlayer?.release()
             backgroundMediaPlayer = null
         } catch (_: Exception) {}
+        abandonAudioFocus()
     }
 
     fun release() {

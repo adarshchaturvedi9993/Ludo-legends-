@@ -17,6 +17,12 @@ import com.example.ludo.model.TokenState
 import org.json.JSONArray
 import org.json.JSONObject
 
+enum class AnimationIntensity {
+    FULL,
+    REDUCED,
+    OFF
+}
+
 class GamePreferences(context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("ludo_game_prefs", Context.MODE_PRIVATE)
@@ -52,6 +58,21 @@ class GamePreferences(context: Context) {
     var isReduceMotionEnabled: Boolean
         get() = prefs.getBoolean(KEY_REDUCE_MOTION, false)
         set(value) = prefs.edit().putBoolean(KEY_REDUCE_MOTION, value).apply()
+
+    var animationIntensity: AnimationIntensity
+        get() {
+            val name = prefs.getString(KEY_ANIMATION_INTENSITY, AnimationIntensity.FULL.name)
+            return try {
+                AnimationIntensity.valueOf(name ?: AnimationIntensity.FULL.name)
+            } catch (_: Exception) {
+                AnimationIntensity.FULL
+            }
+        }
+        set(value) {
+            prefs.edit().putString(KEY_ANIMATION_INTENSITY, value.name).apply()
+            // Keep reduce motion in sync for backward compatibility
+            isReduceMotionEnabled = (value != AnimationIntensity.FULL)
+        }
 
     // Statistics
     var totalMatches: Int
@@ -158,6 +179,7 @@ class GamePreferences(context: Context) {
                     tObj.put("state", t.state.name)
                     tObj.put("stepsTraveled", t.stepsTraveled)
                     tObj.put("homeStep", t.homeStep)
+                    tObj.put("finishOrder", t.finishOrder)
                     tokensArr.put(tObj)
                 }
                 pObj.put("tokens", tokensArr)
@@ -200,13 +222,15 @@ class GamePreferences(context: Context) {
                     val state = TokenState.valueOf(tObj.getString("state"))
                     val stepsTraveled = tObj.getInt("stepsTraveled")
                     val homeStep = tObj.getInt("homeStep")
+                    val finishOrder = tObj.optInt("finishOrder", 0)
                     tokens.add(
                         Token(
                             id = tId,
                             color = color,
                             state = state,
                             stepsTraveled = stepsTraveled,
-                            homeStep = homeStep
+                            homeStep = homeStep,
+                            finishOrder = finishOrder
                         )
                     )
                 }
@@ -545,6 +569,7 @@ class GamePreferences(context: Context) {
         private const val KEY_TURN_TIMER_SECS = "key_turn_timer_seconds"
         private const val KEY_COLOR_BLIND = "key_color_blind_mode"
         private const val KEY_REDUCE_MOTION = "key_reduce_motion"
+        private const val KEY_ANIMATION_INTENSITY = "key_animation_intensity"
         private const val KEY_SAVED_GAME = "key_saved_game_json"
         private const val KEY_STATS_MATCHES = "key_stats_matches"
         private const val KEY_STATS_WINS = "key_stats_wins"

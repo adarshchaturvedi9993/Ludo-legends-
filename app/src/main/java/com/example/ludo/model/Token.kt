@@ -12,7 +12,8 @@ data class Token(
     val color: PlayerColor,
     val state: TokenState = TokenState.YARD,
     val stepsTraveled: Int = 0, // 0..50 on the main perimeter
-    val homeStep: Int = 0       // 1..5 in home corridor, 6 is FINISHED
+    val homeStep: Int = 0,      // 1..5 in home corridor, 6 is FINISHED
+    val finishOrder: Int = 0    // 1..4 when finished, 0 if not yet finished
 ) {
     val isFinished: Boolean get() = state == TokenState.FINISHED
     val isInYard: Boolean get() = state == TokenState.YARD

@@ -90,10 +90,29 @@ fun LudoBoardView(
     animatingTokenCoord: GridCoord? = null,
     animatingHopElevationPx: Float = 0f,
     showColorBlindSymbol: Boolean = false,
-    boardTheme: BoardTheme = BoardThemeCatalog.THEME_ROYAL_NAVY
+    boardTheme: BoardTheme = BoardThemeCatalog.THEME_ROYAL_NAVY,
+    activeCaptureAnim: ActiveCaptureAnimation? = null,
+    activeFinishAnim: ActiveFinishAnimation? = null,
+    shakeOffsetX: Float = 0f,
+    shakeOffsetY: Float = 0f,
+    enableAmbientAnimation: Boolean = true
 ) {
+    val ambientTransition = rememberInfiniteTransition(label = "boardAmbient")
+    val ambientPhase = if (enableAmbientAnimation) {
+        ambientTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(6500, easing = androidx.compose.animation.core.LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "ambientPhase"
+        ).value
+    } else -1f
+
     BoxWithConstraints(
         modifier = modifier
+            .offset { IntOffset(shakeOffsetX.roundToInt(), shakeOffsetY.roundToInt()) }
             .aspectRatio(1f)
             .clip(RoundedCornerShape(16.dp))
             .background(boardTheme.boardBackground)
@@ -107,9 +126,11 @@ fun LudoBoardView(
         val boardSizePx = constraints.maxWidth.toFloat()
         val cellSizePx = boardSizePx / BoardCoordinates.GRID_SIZE
 
-        // 1. Draw Static Dark Board Geometry with selected theme
+        // 1. Draw Static Dark Board Geometry with selected theme & procedural background
         Canvas(modifier = Modifier.fillMaxSize()) {
+            LudoBoardStyling.drawBoardStyleBackground(this, boardSizePx, cellSizePx, boardTheme, ambientPhase)
             drawDarkLudoBoard(cellSizePx, boardTheme)
+            LudoBoardStyling.drawBoardFrame(this, boardSizePx, boardTheme)
         }
 
         // 2. Compute destination tile previews and dotted paths for movable pawns
@@ -127,7 +148,7 @@ fun LudoBoardView(
         }
 
         // Draw destination highlights & dotted paths on board
-        if (animatingTokenId == null && movableTokenIds.isNotEmpty()) {
+        if (animatingTokenId == null && movableTokenIds.isNotEmpty() && activeCaptureAnim == null && activeFinishAnim == null) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val dottedEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f)
                 val previewPlayerColor = currentPlayer.color.primaryColor
@@ -171,7 +192,7 @@ fun LudoBoardView(
 
         // 3. Render Ghost Pawns at destination tiles
         val density = LocalDensity.current
-        if (animatingTokenId == null && movableTokenIds.isNotEmpty()) {
+        if (animatingTokenId == null && movableTokenIds.isNotEmpty() && activeCaptureAnim == null && activeFinishAnim == null) {
             destinationPreviews.forEach { (token, destCoord, _) ->
                 val destX = (destCoord.col + 0.5f) * cellSizePx
                 val destY = (destCoord.row + 0.5f) * cellSizePx
@@ -229,6 +250,14 @@ fun LudoBoardView(
         for (player in players) {
             val isCurrentPlayer = player.id == currentPlayer.id
             for (token in player.tokens) {
+                // If this pawn is currently in capture flight, hide the real pawn at its slot
+                val isVictimHidden = activeCaptureAnim != null && !activeCaptureAnim.isFinished &&
+                    player.color == activeCaptureAnim.victimColor && token.id == activeCaptureAnim.victimTokenId
+                // If this pawn is currently in finish celebration flight, hide the slot copy
+                val isFinishHidden = activeFinishAnim != null && !activeFinishAnim.isFinished &&
+                    player.color == activeFinishAnim.playerColor && token.id == activeFinishAnim.tokenId
+                if (isVictimHidden || isFinishHidden) continue
+
                 val isAnimatingThisToken = token.id == animatingTokenId && player.id == currentPlayer.id
                 val coord = if (isAnimatingThisToken && animatingTokenCoord != null) {
                     animatingTokenCoord
@@ -243,7 +272,7 @@ fun LudoBoardView(
 
                 val isMovable = isCurrentPlayer && movableTokenIds.contains(token.id)
 
-                val (offsetX, offsetY) = if (clusterSize > 1 && token.state != TokenState.YARD && !isAnimatingThisToken) {
+                val (offsetX, offsetY) = if (clusterSize > 1 && token.state != TokenState.YARD && !token.isFinished && !isAnimatingThisToken) {
                     val angle = (2.0 * PI * indexInCluster / clusterSize).toFloat()
                     val radius = cellSizePx * 0.22f
                     Pair(cos(angle) * radius, sin(angle) * radius)
@@ -254,7 +283,12 @@ fun LudoBoardView(
                 val centerX = (coord.col + 0.5f) * cellSizePx + offsetX
                 val centerY = (coord.row + 0.5f) * cellSizePx + offsetY
 
-                val pawnSizePx = if (token.state == TokenState.YARD) cellSizePx * 0.94f else cellSizePx * 0.92f
+                // Finished pawns sit at ~50% scale in their 2x2 finish quadrant
+                val pawnSizePx = when {
+                    token.isFinished -> cellSizePx * 0.50f
+                    token.state == TokenState.YARD -> cellSizePx * 0.94f
+                    else -> cellSizePx * 0.92f
+                }
                 val pawnSizeDp = with(density) { pawnSizePx.toDp() }
 
                 // Minimum 48dp touch hitbox
@@ -281,6 +315,17 @@ fun LudoBoardView(
                         .testTag("pawn_${player.color.name}_${token.id}"),
                     contentAlignment = Alignment.Center
                 ) {
+                    // Soft aura behind finished pawns
+                    if (token.isFinished) {
+                        Box(
+                            modifier = Modifier
+                                .size(pawnSizeDp * 1.35f)
+                                .clip(CircleShape)
+                                .background(StarGold.copy(alpha = 0.20f))
+                                .border(1.dp, StarGold.copy(alpha = 0.40f), CircleShape)
+                        )
+                    }
+
                     Box(
                         modifier = Modifier
                             .size(pawnSizeDp)
@@ -301,7 +346,7 @@ fun LudoBoardView(
                     }
 
                     // Multi-token count badge if clustered and more than 1
-                    if (clusterSize > 1 && indexInCluster == 0 && token.state != TokenState.YARD && !isAnimatingThisToken) {
+                    if (clusterSize > 1 && indexInCluster == 0 && token.state != TokenState.YARD && !token.isFinished && !isAnimatingThisToken) {
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
@@ -325,6 +370,17 @@ fun LudoBoardView(
                 }
             }
         }
+
+        // 5. Active Capture & Finish Animations Overlays
+        CaptureAnimationOverlay(
+            capture = activeCaptureAnim,
+            cellSizePx = cellSizePx
+        )
+
+        FinishAnimationOverlay(
+            finishAnim = activeFinishAnim,
+            cellSizePx = cellSizePx
+        )
     }
 }
 

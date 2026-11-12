@@ -1,28 +1,36 @@
 package com.example.ludo.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.ElectricBolt
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.MusicOff
@@ -54,6 +62,7 @@ import com.example.ludo.ads.AdConstants
 import com.example.ludo.ads.BannerAdView
 import com.example.ludo.ai.LudoBotAI
 import com.example.ludo.audio.SoundManager
+import com.example.ludo.data.AnimationIntensity
 import com.example.ludo.data.GamePreferences
 import com.example.ludo.engine.LudoGameEngine
 import com.example.ludo.engine.MoveOutcome
@@ -61,15 +70,20 @@ import com.example.ludo.model.BoardCoordinates
 import com.example.ludo.model.GameState
 import com.example.ludo.model.GridCoord
 import com.example.ludo.model.Player
+import com.example.ludo.model.PlayerColor
+import com.example.ludo.ui.components.ActiveCaptureAnimation
+import com.example.ludo.ui.components.ActiveFinishAnimation
 import com.example.ludo.ui.components.GameBackground
 import com.example.ludo.ui.components.GameButton
 import com.example.ludo.ui.components.GameButtonStyle
 import com.example.ludo.ui.components.GameDialog
+import com.example.ludo.ui.components.GameToastBanner
+import com.example.ludo.ui.components.GameToastNotification
 import com.example.ludo.ui.components.LudoBoardView
 import com.example.ludo.ui.components.PlayerDicePanel
-import com.example.ui.theme.AccentPrimary
 import com.example.ui.theme.BorderHairline
 import com.example.ui.theme.StarGold
+import com.example.ui.theme.StatusSuccess
 import com.example.ui.theme.SurfaceCard
 import com.example.ui.theme.SurfaceElevated
 import com.example.ui.theme.TextMuted
@@ -80,17 +94,20 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * World-Class Ludo Game Screen:
- * - Direct board pawn tapping with zero annoying popups.
- * - Clean top header with pause, team-colored turn pill (no emoji slop), sound toggle.
- * - 4 individual corner player panels with 55% dimming for inactive players.
- * - Clear target tile previews with dotted paths.
- * - Turn timer with countdown ring and automated play on timeout.
- * - Single-pawn auto-move.
+ * World-Class Responsive Ludo Game Screen:
+ * - Predictive BackHandler with confirm leave match dialog.
+ * - Adaptive layout: side-by-side on tablet/landscape, vertical stacked on phone.
+ * - Score strip (pawns home e.g. "2/4 Home", captures count).
+ * - Contextual hint line ("Tap dice", "Tap a glowing pawn", "AI thinking...").
+ * - High-impact ~1.2s capture animation with white hit flash, double shockwave, sparks,
+ *   pawn squash & spin flight, board shake, and "CAPTURED!" toast.
+ * - Winning pawn 3D spin into dedicated 2x2 finish quadrant with golden rays and "HOME SAFE!" toast.
+ * - Low-power / animation intensity aware (Full, Reduced, Off).
  */
 @Composable
 fun GameScreen(
@@ -109,6 +126,11 @@ fun GameScreen(
     val coroutineScope = rememberCoroutineScope()
     val currentPlayer = gameState.currentPlayer
 
+    // In-game predictive back interceptor
+    BackHandler {
+        showPauseDialog = true
+    }
+
     // Never play background music during active game match
     DisposableEffect(Unit) {
         soundManager.pauseMusic()
@@ -123,6 +145,19 @@ fun GameScreen(
     val isTurnTimerEnabled = gamePreferences?.isTurnTimerEnabled ?: true
     val turnTimerLimitSecs = gamePreferences?.turnTimerSeconds ?: 15
     val isColorBlindEnabled = gamePreferences?.isColorBlindModeEnabled ?: false
+    val animationIntensity = gamePreferences?.animationIntensity ?: AnimationIntensity.FULL
+    val isAnimationsEnabled = animationIntensity != AnimationIntensity.OFF
+
+    // Floating toast state
+    var activeToast by remember { mutableStateOf<GameToastNotification?>(null) }
+
+    // Screen shake offsets
+    var shakeOffsetX by remember { mutableFloatStateOf(0f) }
+    var shakeOffsetY by remember { mutableFloatStateOf(0f) }
+
+    // Capture & Finish animations
+    var activeCaptureAnim by remember { mutableStateOf<ActiveCaptureAnimation?>(null) }
+    var activeFinishAnim by remember { mutableStateOf<ActiveFinishAnimation?>(null) }
 
     // Player last rolled dice values
     val playerLastDiceValue = remember {
@@ -162,26 +197,32 @@ fun GameScreen(
     } else null
 
     // Reset turn timer whenever turn changes or state transitions
-    LaunchedEffect(currentPlayer.id, gameState.isWaitingForRoll, gameState.isDiceRolling, isHopAnimating) {
+    LaunchedEffect(currentPlayer.id, gameState.isWaitingForRoll, gameState.isDiceRolling, isHopAnimating, activeCaptureAnim, activeFinishAnim) {
         timerRemainingSecs = turnTimerLimitSecs
     }
 
     // Turn countdown ticker
-    LaunchedEffect(isTurnTimerEnabled, gameState.isGameOver, showPauseDialog, isHopAnimating, gameState.isDiceRolling, currentPlayer.id) {
-        if (isTurnTimerEnabled && !gameState.isGameOver && !showPauseDialog && !isHopAnimating && !gameState.isDiceRolling) {
+    LaunchedEffect(
+        isTurnTimerEnabled, gameState.isGameOver, showPauseDialog, isHopAnimating,
+        gameState.isDiceRolling, currentPlayer.id, activeCaptureAnim, activeFinishAnim
+    ) {
+        if (isTurnTimerEnabled && !gameState.isGameOver && !showPauseDialog && !isHopAnimating &&
+            !gameState.isDiceRolling && activeCaptureAnim == null && activeFinishAnim == null
+        ) {
             while (timerRemainingSecs > 0) {
                 delay(1000)
                 timerRemainingSecs -= 1
             }
             // Timer expired: auto-play fallback
-            if (!isHopAnimating && !gameState.isGameOver) {
+            if (!isHopAnimating && !gameState.isGameOver && activeCaptureAnim == null && activeFinishAnim == null) {
                 if (gameState.isWaitingForRoll) {
                     handleRoll(
                         currentState = gameState,
                         soundManager = soundManager,
                         coroutineScope = coroutineScope,
                         onStateUpdated = onStateUpdated,
-                        onRollStarted = { rolled -> playerLastDiceValue[currentPlayer.id] = rolled }
+                        onRollStarted = { rolled -> playerLastDiceValue[currentPlayer.id] = rolled },
+                        onShowToast = { t -> activeToast = t }
                     )
                 } else if (gameState.movableTokenIds.isNotEmpty()) {
                     val fallbackId = gameState.movableTokenIds.first()
@@ -190,13 +231,22 @@ fun GameScreen(
                         currentState = gameState,
                         soundManager = soundManager,
                         coroutineScope = coroutineScope,
+                        animationIntensity = animationIntensity,
                         onStateUpdated = onStateUpdated,
+                        onGameFinished = onGameFinished,
                         setAnimatingToken = { id, coord, elev ->
                             animatingTokenId = id
                             animatingTokenCoord = coord
                             animatingHopElevationPx = elev
                         },
-                        setHopAnimating = { isHopAnimating = it }
+                        setHopAnimating = { isHopAnimating = it },
+                        setCaptureAnimation = { activeCaptureAnim = it },
+                        setFinishAnimation = { activeFinishAnim = it },
+                        setShakeOffset = { x, y ->
+                            shakeOffsetX = x
+                            shakeOffsetY = y
+                        },
+                        onShowToast = { t -> activeToast = t }
                     )
                 }
             }
@@ -205,27 +255,40 @@ fun GameScreen(
 
     // Centralized DIRECT BOARD TAP executor
     val onSelectPawn: (Int) -> Unit = { tokenId ->
-        if (!isHopAnimating && !currentPlayer.isBot && gameState.movableTokenIds.contains(tokenId)) {
+        if (!isHopAnimating && activeCaptureAnim == null && activeFinishAnim == null &&
+            !currentPlayer.isBot && gameState.movableTokenIds.contains(tokenId)
+        ) {
             soundManager.playPawnPick()
             startHopAndMove(
                 tokenId = tokenId,
                 currentState = gameState,
                 soundManager = soundManager,
                 coroutineScope = coroutineScope,
+                animationIntensity = animationIntensity,
                 onStateUpdated = onStateUpdated,
+                onGameFinished = onGameFinished,
                 setAnimatingToken = { id, coord, elev ->
                     animatingTokenId = id
                     animatingTokenCoord = coord
                     animatingHopElevationPx = elev
                 },
-                setHopAnimating = { isHopAnimating = it }
+                setHopAnimating = { isHopAnimating = it },
+                setCaptureAnimation = { activeCaptureAnim = it },
+                setFinishAnimation = { activeFinishAnim = it },
+                setShakeOffset = { x, y ->
+                    shakeOffsetX = x
+                    shakeOffsetY = y
+                },
+                onShowToast = { t -> activeToast = t }
             )
         }
     }
 
     // Auto-advance turn if no moves available
-    LaunchedEffect(gameState.isWaitingForRoll, gameState.movableTokenIds, gameState.isDiceRolling, isHopAnimating) {
-        if (!gameState.isWaitingForRoll && !gameState.isDiceRolling && gameState.movableTokenIds.isEmpty() && !isHopAnimating) {
+    LaunchedEffect(gameState.isWaitingForRoll, gameState.movableTokenIds, gameState.isDiceRolling, isHopAnimating, activeCaptureAnim, activeFinishAnim) {
+        if (!gameState.isWaitingForRoll && !gameState.isDiceRolling && gameState.movableTokenIds.isEmpty() &&
+            !isHopAnimating && activeCaptureAnim == null && activeFinishAnim == null
+        ) {
             delay(1000)
             val nextIndex = LudoGameEngine.getNextActivePlayerIndex(gameState.players, gameState.currentPlayerIndex)
             val nextState = gameState.copy(
@@ -240,9 +303,12 @@ fun GameScreen(
     }
 
     // Auto-move single eligible pawn after 400ms
-    LaunchedEffect(gameState.isWaitingForRoll, gameState.movableTokenIds, gameState.isDiceRolling, isHopAnimating, currentPlayer.isBot, isAutoMoveEnabled) {
+    LaunchedEffect(
+        gameState.isWaitingForRoll, gameState.movableTokenIds, gameState.isDiceRolling,
+        isHopAnimating, currentPlayer.isBot, isAutoMoveEnabled, activeCaptureAnim, activeFinishAnim
+    ) {
         if (isAutoMoveEnabled && !currentPlayer.isBot && !gameState.isWaitingForRoll && !gameState.isDiceRolling &&
-            gameState.movableTokenIds.size == 1 && !isHopAnimating
+            gameState.movableTokenIds.size == 1 && !isHopAnimating && activeCaptureAnim == null && activeFinishAnim == null
         ) {
             val singleTokenId = gameState.movableTokenIds.first()
             delay(400)
@@ -251,8 +317,13 @@ fun GameScreen(
     }
 
     // Coordinate automated Bot turns
-    LaunchedEffect(currentPlayer.isBot, gameState.isWaitingForRoll, gameState.isDiceRolling, isHopAnimating, gameState.isGameOver) {
-        if (currentPlayer.isBot && !gameState.isGameOver && !isHopAnimating) {
+    LaunchedEffect(
+        currentPlayer.isBot, gameState.isWaitingForRoll, gameState.isDiceRolling,
+        isHopAnimating, gameState.isGameOver, activeCaptureAnim, activeFinishAnim
+    ) {
+        if (currentPlayer.isBot && !gameState.isGameOver && !isHopAnimating &&
+            activeCaptureAnim == null && activeFinishAnim == null
+        ) {
             if (gameState.isWaitingForRoll && !gameState.isDiceRolling) {
                 delay(400)
                 handleRoll(
@@ -260,7 +331,8 @@ fun GameScreen(
                     soundManager = soundManager,
                     coroutineScope = coroutineScope,
                     onStateUpdated = onStateUpdated,
-                    onRollStarted = { rolled -> playerLastDiceValue[currentPlayer.id] = rolled }
+                    onRollStarted = { rolled -> playerLastDiceValue[currentPlayer.id] = rolled },
+                    onShowToast = { t -> activeToast = t }
                 )
             } else if (!gameState.isWaitingForRoll && !gameState.isDiceRolling && gameState.movableTokenIds.isNotEmpty()) {
                 delay(400)
@@ -270,144 +342,234 @@ fun GameScreen(
                     currentState = gameState,
                     soundManager = soundManager,
                     coroutineScope = coroutineScope,
+                    animationIntensity = animationIntensity,
                     onStateUpdated = onStateUpdated,
+                    onGameFinished = onGameFinished,
                     setAnimatingToken = { id, coord, elev ->
                         animatingTokenId = id
                         animatingTokenCoord = coord
                         animatingHopElevationPx = elev
                     },
-                    setHopAnimating = { isHopAnimating = it }
+                    setHopAnimating = { isHopAnimating = it },
+                    setCaptureAnimation = { activeCaptureAnim = it },
+                    setFinishAnimation = { activeFinishAnim = it },
+                    setShakeOffset = { x, y ->
+                        shakeOffsetX = x
+                        shakeOffsetY = y
+                    },
+                    onShowToast = { t -> activeToast = t }
                 )
             }
         }
     }
 
-    // Victory celebration check
-    LaunchedEffect(gameState.isGameOver) {
-        if (gameState.isGameOver) {
-            soundManager.playVictory()
-            delay(500)
-            onGameFinished(gameState)
+    // Auto dismiss toast after 2.2s
+    LaunchedEffect(activeToast) {
+        if (activeToast != null) {
+            delay(2200)
+            activeToast = null
         }
     }
 
-    GameBackground {
-        Box(
+    val activeTheme = remember(gamePreferences?.selectedBoardThemeId) {
+        com.example.ludo.model.BoardThemeCatalog.getThemeById(gamePreferences?.selectedBoardThemeId)
+    }
+
+    GameBackground(enableTwinkle = animationIntensity == AnimationIntensity.FULL) {
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 12.dp, vertical = 6.dp)
+                .padding(horizontal = 8.dp, vertical = 4.dp)
                 .testTag("game_screen")
         ) {
-            Column(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                // Playable HUD and Board Area (takes remaining screen space above the sticked banner)
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    verticalArrangement = Arrangement.SpaceBetween,
-                    horizontalAlignment = Alignment.CenterHorizontally
+            val isLandscapeOrTablet = maxWidth > maxHeight || maxWidth >= 600.dp
+
+            if (isLandscapeOrTablet) {
+                // Wide / Tablet / Landscape Layout: Board in center, panels on left and right
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 1. Top HUD: Pause Button, Team-Colored Turn Pill, Sound Toggle
-                    Row(
+                    // Left Column: Top Bar, Left Players, Score Strip
+                    Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp, bottom = 2.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .widthIn(min = 180.dp, max = 240.dp)
+                            .fillMaxHeight(),
+                        verticalArrangement = Arrangement.SpaceBetween
                     ) {
-                        IconButton(
-                            onClick = {
+                        GameTopHeader(
+                            gameState = gameState,
+                            currentPlayer = currentPlayer,
+                            isSoundMuted = isSoundMuted,
+                            onPauseClick = {
                                 soundManager.playButtonTap()
                                 showPauseDialog = true
                             },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(SurfaceCard)
-                                .border(1.dp, BorderHairline, CircleShape)
-                                .testTag("pause_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Pause,
-                                contentDescription = "Pause",
-                                tint = TextPrimary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        // Turn indicator pill (Clean, no emoji)
-                        Row(
-                            modifier = Modifier
-                                .height(38.dp)
-                                .clip(RoundedCornerShape(19.dp))
-                                .background(SurfaceCard)
-                                .border(
-                                    width = 1.2.dp,
-                                    color = currentPlayer.color.primaryColor,
-                                    shape = RoundedCornerShape(19.dp)
-                                )
-                                .padding(horizontal = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(currentPlayer.color.primaryColor)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "TURN ${gameState.turnCount} • ${currentPlayer.name.uppercase()}",
-                                style = Typography.titleMedium.copy(
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 0.6.sp
-                                ),
-                                color = TextPrimary
-                            )
-                            if (currentPlayer.isBot) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Icon(
-                                    imageVector = Icons.Default.SmartToy,
-                                    contentDescription = "AI",
-                                    tint = StarGold,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                            }
-                        }
-
-                        IconButton(
-                            onClick = {
+                            onSoundToggleClick = {
                                 isSoundMuted = !isSoundMuted
                                 soundManager.isSoundEnabled = !isSoundMuted
                                 soundManager.playButtonTap()
-                            },
+                            }
+                        )
+
+                        ScoreStrip(players = gameState.players, currentPlayer = currentPlayer)
+
+                        PlayerDiceRow(
+                            players = topPlayers,
+                            currentPlayer = currentPlayer,
+                            gameState = gameState,
+                            playerLastDiceValue = playerLastDiceValue,
+                            turnTimerProgress = timerProgress,
+                            isHopAnimating = isHopAnimating || activeCaptureAnim != null || activeFinishAnim != null,
+                            isTop = true,
+                            onBounce = {},
+                            onRollClick = { player ->
+                                if (player.id == currentPlayer.id) {
+                                    handleRoll(
+                                        currentState = gameState,
+                                        soundManager = soundManager,
+                                        coroutineScope = coroutineScope,
+                                        onStateUpdated = onStateUpdated,
+                                        onRollStarted = { rolled -> playerLastDiceValue[player.id] = rolled },
+                                        onShowToast = { t -> activeToast = t }
+                                    )
+                                }
+                            }
+                        )
+                    }
+
+                    // Center: Large Square Centered Board
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        LudoBoardView(
+                            players = gameState.players,
+                            currentPlayer = currentPlayer,
+                            movableTokenIds = if (isHopAnimating || currentPlayer.isBot || activeCaptureAnim != null || activeFinishAnim != null) emptySet() else gameState.movableTokenIds,
+                            diceValue = gameState.diceValue,
+                            onTokenClick = onSelectPawn,
+                            animatingTokenId = animatingTokenId,
+                            animatingTokenCoord = animatingTokenCoord,
+                            animatingHopElevationPx = animatingHopElevationPx,
+                            showColorBlindSymbol = isColorBlindEnabled,
+                            boardTheme = activeTheme,
+                            activeCaptureAnim = activeCaptureAnim,
+                            activeFinishAnim = activeFinishAnim,
+                            shakeOffsetX = shakeOffsetX,
+                            shakeOffsetY = shakeOffsetY,
+                            enableAmbientAnimation = animationIntensity == AnimationIntensity.FULL,
+                            modifier = Modifier.aspectRatio(1f)
+                        )
+
+                        // Floating Toast Overlay
+                        GameToastBanner(
+                            toast = activeToast,
                             modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(SurfaceCard)
-                                .border(1.dp, BorderHairline, CircleShape)
-                                .testTag("sound_toggle_button")
+                                .align(Alignment.TopCenter)
+                                .padding(top = 12.dp)
+                        )
+                    }
+
+                    // Right Column: Right Players, Hint Line, Banner Ad
+                    Column(
+                        modifier = Modifier
+                            .widthIn(min = 180.dp, max = 240.dp)
+                            .fillMaxHeight(),
+                        verticalArrangement = Arrangement.SpaceBetween,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        HintLine(
+                            gameState = gameState,
+                            currentPlayer = currentPlayer,
+                            isHopAnimating = isHopAnimating || activeCaptureAnim != null || activeFinishAnim != null
+                        )
+
+                        PlayerDiceRow(
+                            players = bottomPlayers,
+                            currentPlayer = currentPlayer,
+                            gameState = gameState,
+                            playerLastDiceValue = playerLastDiceValue,
+                            turnTimerProgress = timerProgress,
+                            isHopAnimating = isHopAnimating || activeCaptureAnim != null || activeFinishAnim != null,
+                            isTop = false,
+                            onBounce = {},
+                            onRollClick = { player ->
+                                if (player.id == currentPlayer.id) {
+                                    handleRoll(
+                                        currentState = gameState,
+                                        soundManager = soundManager,
+                                        coroutineScope = coroutineScope,
+                                        onStateUpdated = onStateUpdated,
+                                        onRollStarted = { rolled -> playerLastDiceValue[player.id] = rolled },
+                                        onShowToast = { t -> activeToast = t }
+                                    )
+                                }
+                            }
+                        )
+
+                        BannerAdView(
+                            modifier = Modifier.fillMaxWidth(),
+                            placementKey = AdConstants.KEY_BANNER_GAME,
+                            hasCardContainer = true,
+                            cornerRadius = 12.dp,
+                            containerBackground = SurfaceCard,
+                            containerBorderColor = BorderHairline
+                        )
+                    }
+                }
+            } else {
+                // Portrait Phone Layout: Top HUD, Score strip, Top panels, Board, Bottom panels, Banner Ad
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.SpaceBetween,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        // 1. Top HUD
+                        GameTopHeader(
+                            gameState = gameState,
+                            currentPlayer = currentPlayer,
+                            isSoundMuted = isSoundMuted,
+                            onPauseClick = {
+                                soundManager.playButtonTap()
+                                showPauseDialog = true
+                            },
+                            onSoundToggleClick = {
+                                isSoundMuted = !isSoundMuted
+                                soundManager.isSoundEnabled = !isSoundMuted
+                                soundManager.playButtonTap()
+                            }
+                        )
+
+                        // 2. Score Strip & Hint Line
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = if (isSoundMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
-                                contentDescription = "Toggle Sound",
-                                tint = if (isSoundMuted) TextMuted else TextPrimary,
-                                modifier = Modifier.size(18.dp)
+                            ScoreStrip(players = gameState.players, currentPlayer = currentPlayer)
+                            HintLine(
+                                gameState = gameState,
+                                currentPlayer = currentPlayer,
+                                isHopAnimating = isHopAnimating || activeCaptureAnim != null || activeFinishAnim != null
                             )
                         }
                     }
 
-                    // 2. Top Player Panels with individual dice
+                    // 3. Top Player Panels
                     PlayerDiceRow(
                         players = topPlayers,
                         currentPlayer = currentPlayer,
                         gameState = gameState,
                         playerLastDiceValue = playerLastDiceValue,
                         turnTimerProgress = timerProgress,
-                        isHopAnimating = isHopAnimating,
+                        isHopAnimating = isHopAnimating || activeCaptureAnim != null || activeFinishAnim != null,
                         isTop = true,
                         onBounce = {},
                         onRollClick = { player ->
@@ -417,36 +579,56 @@ fun GameScreen(
                                     soundManager = soundManager,
                                     coroutineScope = coroutineScope,
                                     onStateUpdated = onStateUpdated,
-                                    onRollStarted = { rolled -> playerLastDiceValue[player.id] = rolled }
+                                    onRollStarted = { rolled -> playerLastDiceValue[player.id] = rolled },
+                                    onShowToast = { t -> activeToast = t }
                                 )
                             }
                         }
                     )
 
-                    // 3. Central Ludo Board (DIRECT BOARD TAP WITH NO POPUP)
-                    val activeTheme = com.example.ludo.model.BoardThemeCatalog.getThemeById(gamePreferences?.selectedBoardThemeId)
-                    LudoBoardView(
-                        players = gameState.players,
-                        currentPlayer = currentPlayer,
-                        movableTokenIds = if (isHopAnimating || currentPlayer.isBot) emptySet() else gameState.movableTokenIds,
-                        diceValue = gameState.diceValue,
-                        onTokenClick = onSelectPawn,
-                        animatingTokenId = animatingTokenId,
-                        animatingTokenCoord = animatingTokenCoord,
-                        animatingHopElevationPx = animatingHopElevationPx,
-                        showColorBlindSymbol = isColorBlindEnabled,
-                        boardTheme = activeTheme,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
+                    // 4. Centered Board
+                    Box(
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .aspectRatio(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        LudoBoardView(
+                            players = gameState.players,
+                            currentPlayer = currentPlayer,
+                            movableTokenIds = if (isHopAnimating || currentPlayer.isBot || activeCaptureAnim != null || activeFinishAnim != null) emptySet() else gameState.movableTokenIds,
+                            diceValue = gameState.diceValue,
+                            onTokenClick = onSelectPawn,
+                            animatingTokenId = animatingTokenId,
+                            animatingTokenCoord = animatingTokenCoord,
+                            animatingHopElevationPx = animatingHopElevationPx,
+                            showColorBlindSymbol = isColorBlindEnabled,
+                            boardTheme = activeTheme,
+                            activeCaptureAnim = activeCaptureAnim,
+                            activeFinishAnim = activeFinishAnim,
+                            shakeOffsetX = shakeOffsetX,
+                            shakeOffsetY = shakeOffsetY,
+                            enableAmbientAnimation = animationIntensity == AnimationIntensity.FULL,
+                            modifier = Modifier.fillMaxSize()
+                        )
 
-                    // 4. Bottom Player Panels with individual dice
+                        // Floating Toast Overlay
+                        GameToastBanner(
+                            toast = activeToast,
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = 10.dp)
+                        )
+                    }
+
+                    // 5. Bottom Player Panels
                     PlayerDiceRow(
                         players = bottomPlayers,
                         currentPlayer = currentPlayer,
                         gameState = gameState,
                         playerLastDiceValue = playerLastDiceValue,
                         turnTimerProgress = timerProgress,
-                        isHopAnimating = isHopAnimating,
+                        isHopAnimating = isHopAnimating || activeCaptureAnim != null || activeFinishAnim != null,
                         isTop = false,
                         onBounce = {},
                         onRollClick = { player ->
@@ -456,32 +638,33 @@ fun GameScreen(
                                     soundManager = soundManager,
                                     coroutineScope = coroutineScope,
                                     onStateUpdated = onStateUpdated,
-                                    onRollStarted = { rolled -> playerLastDiceValue[player.id] = rolled }
+                                    onRollStarted = { rolled -> playerLastDiceValue[player.id] = rolled },
+                                    onShowToast = { t -> activeToast = t }
                                 )
                             }
                         }
                     )
-                }
 
-                // 5. Bottom Banner Ad - Sticked firmly to the bottom of the screen
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 2.dp, bottom = 2.dp),
-                    contentAlignment = Alignment.BottomCenter
-                ) {
-                    BannerAdView(
-                        modifier = Modifier.fillMaxWidth(),
-                        placementKey = AdConstants.KEY_BANNER_GAME,
-                        hasCardContainer = true,
-                        cornerRadius = 14.dp,
-                        containerBackground = SurfaceCard,
-                        containerBorderColor = BorderHairline
-                    )
+                    // 6. Bottom Banner Ad
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 2.dp, bottom = 2.dp),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        BannerAdView(
+                            modifier = Modifier.fillMaxWidth(),
+                            placementKey = AdConstants.KEY_BANNER_GAME,
+                            hasCardContainer = true,
+                            cornerRadius = 12.dp,
+                            containerBackground = SurfaceCard,
+                            containerBorderColor = BorderHairline
+                        )
+                    }
                 }
             }
 
-            // Universal Pause Dialog using GameDialog
+            // In-Game Confirm Pause / Leave Match Dialog
             GameDialog(
                 visible = showPauseDialog,
                 title = "Match Paused",
@@ -525,7 +708,7 @@ fun GameScreen(
                             icon = Icons.Outlined.Refresh
                         )
                         GameButton(
-                            text = "Exit to Main Menu",
+                            text = "Save & Exit to Menu",
                             onClick = {
                                 soundManager.playButtonTap()
                                 showPauseDialog = false
@@ -538,7 +721,7 @@ fun GameScreen(
                 }
             ) {
                 Text(
-                    text = "Your match progress is saved automatically and can be resumed at any time.",
+                    text = "Your match progress is automatically autosaved and can be resumed at any time from Home.",
                     style = Typography.bodyMedium,
                     color = TextSecondary,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -616,6 +799,170 @@ fun GameScreen(
 }
 
 @Composable
+private fun GameTopHeader(
+    gameState: GameState,
+    currentPlayer: Player,
+    isSoundMuted: Boolean,
+    onPauseClick: () -> Unit,
+    onSoundToggleClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 2.dp, bottom = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(
+            onClick = onPauseClick,
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(SurfaceCard)
+                .border(1.dp, BorderHairline, CircleShape)
+                .testTag("pause_button")
+        ) {
+            Icon(
+                imageVector = Icons.Default.Pause,
+                contentDescription = "Pause",
+                tint = TextPrimary,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+
+        // Turn indicator pill
+        Row(
+            modifier = Modifier
+                .height(36.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(SurfaceCard)
+                .border(
+                    width = 1.2.dp,
+                    color = currentPlayer.color.primaryColor,
+                    shape = RoundedCornerShape(18.dp)
+                )
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(currentPlayer.color.primaryColor)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "TURN ${gameState.turnCount} • ${currentPlayer.name.uppercase()}",
+                style = Typography.titleMedium.copy(
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.6.sp
+                ),
+                color = TextPrimary
+            )
+            if (currentPlayer.isBot) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(
+                    imageVector = Icons.Default.SmartToy,
+                    contentDescription = "AI",
+                    tint = StarGold,
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+        }
+
+        IconButton(
+            onClick = onSoundToggleClick,
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(SurfaceCard)
+                .border(1.dp, BorderHairline, CircleShape)
+                .testTag("sound_toggle_button")
+        ) {
+            Icon(
+                imageVector = if (isSoundMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                contentDescription = "Toggle Sound",
+                tint = if (isSoundMuted) TextMuted else TextPrimary,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ScoreStrip(
+    players: List<Player>,
+    currentPlayer: Player,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(SurfaceCard.copy(alpha = 0.85f))
+            .border(1.dp, BorderHairline, RoundedCornerShape(8.dp))
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        players.forEach { p ->
+            val homeCount = p.tokens.count { it.isFinished }
+            val isCurrent = p.id == currentPlayer.id
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(p.color.primaryColor)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "$homeCount/4",
+                    style = Typography.labelSmall.copy(
+                        fontSize = 10.sp,
+                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal
+                    ),
+                    color = if (isCurrent) StarGold else TextSecondary
+                )
+                if (p.capturesCount > 0) {
+                    Text(
+                        text = " ⚔${p.capturesCount}",
+                        style = Typography.labelSmall.copy(fontSize = 9.sp),
+                        color = TextMuted
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HintLine(
+    gameState: GameState,
+    currentPlayer: Player,
+    isHopAnimating: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val hintText = when {
+        isHopAnimating -> "Moving pawn..."
+        gameState.isDiceRolling -> "Rolling dice..."
+        gameState.isWaitingForRoll && currentPlayer.isBot -> "AI thinking..."
+        gameState.isWaitingForRoll -> "Tap your dice to roll"
+        gameState.movableTokenIds.size > 1 -> "Tap a glowing pawn to move"
+        gameState.movableTokenIds.size == 1 -> "Pawn advancing..."
+        else -> "Passing turn..."
+    }
+
+    Text(
+        text = hintText,
+        style = Typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
+        color = if (gameState.movableTokenIds.isNotEmpty()) StarGold else TextMuted,
+        modifier = modifier.padding(horizontal = 4.dp)
+    )
+}
+
+@Composable
 private fun PlayerDiceRow(
     players: List<Player>,
     currentPlayer: Player,
@@ -672,7 +1019,8 @@ private fun handleRoll(
     soundManager: SoundManager,
     coroutineScope: CoroutineScope,
     onStateUpdated: (GameState) -> Unit,
-    onRollStarted: (Int) -> Unit = {}
+    onRollStarted: (Int) -> Unit = {},
+    onShowToast: (GameToastNotification) -> Unit = {}
 ) {
     if (!currentState.isWaitingForRoll || currentState.isDiceRolling) return
 
@@ -716,6 +1064,17 @@ private fun handleRoll(
         val currIdx = allPlayers.indexOfFirst { it.id == currPlayer.id }
         allPlayers[currIdx] = updatedPlayer
 
+        if (rolledValue == 6) {
+            onShowToast(
+                GameToastNotification(
+                    title = "ROLLED A 6!",
+                    subtitle = "Extra turn earned for ${currPlayer.name}",
+                    accentColor = StarGold,
+                    icon = Icons.Default.Stars
+                )
+            )
+        }
+
         val status = when {
             movableIds.isEmpty() -> "${currPlayer.name} rolled $rolledValue. No valid moves."
             movableIds.size > 1 -> "Tap a highlighted pawn"
@@ -741,59 +1100,165 @@ private fun startHopAndMove(
     currentState: GameState,
     soundManager: SoundManager,
     coroutineScope: CoroutineScope,
+    animationIntensity: AnimationIntensity,
     onStateUpdated: (GameState) -> Unit,
+    onGameFinished: (GameState) -> Unit,
     setAnimatingToken: (Int?, GridCoord?, Float) -> Unit,
-    setHopAnimating: (Boolean) -> Unit
+    setHopAnimating: (Boolean) -> Unit,
+    setCaptureAnimation: (ActiveCaptureAnimation?) -> Unit,
+    setFinishAnimation: (ActiveFinishAnimation?) -> Unit,
+    setShakeOffset: (Float, Float) -> Unit,
+    onShowToast: (GameToastNotification) -> Unit
 ) {
     val currPlayer = currentState.currentPlayer
     val token = currPlayer.tokens.firstOrNull { it.id == tokenId } ?: return
 
     val hopPath = BoardCoordinates.computeHopPath(token, currentState.diceValue)
-    if (hopPath.size <= 1) {
-        val (nextState, outcome) = LudoGameEngine.executeMove(currentState, tokenId)
-        when (outcome) {
-            is MoveOutcome.Moved -> {
-                if (outcome.capturedPlayerColor != null) soundManager.playCapture()
-                else if (outcome.tokenFinished) soundManager.playTokenHome()
-            }
-            else -> {}
-        }
-        onStateUpdated(nextState)
-        return
-    }
 
     setHopAnimating(true)
 
     coroutineScope.launch {
-        for (i in 1 until hopPath.size) {
-            val startCoord = hopPath[i - 1]
-            val endCoord = hopPath[i]
+        // Step 1: Hop Path Animation along board perimeter / home stretch
+        if (hopPath.size > 1 && animationIntensity != AnimationIntensity.OFF) {
+            val frames = if (animationIntensity == AnimationIntensity.REDUCED) 4 else 7
+            val frameDelay = if (animationIntensity == AnimationIntensity.REDUCED) 14L else 18L
 
-            val frames = 7
-            val frameDelay = 18L
-            for (f in 1..frames) {
-                val t = f.toFloat() / frames
-                val curRow = startCoord.row + (endCoord.row - startCoord.row) * t
-                val curCol = startCoord.col + (endCoord.col - startCoord.col) * t
-                val elevation = 20f * sin(PI.toFloat() * t)
+            for (i in 1 until hopPath.size) {
+                val startCoord = hopPath[i - 1]
+                val endCoord = hopPath[i]
 
-                setAnimatingToken(tokenId, GridCoord(curRow, curCol), elevation)
-                delay(frameDelay)
+                for (f in 1..frames) {
+                    val t = f.toFloat() / frames
+                    val curRow = startCoord.row + (endCoord.row - startCoord.row) * t
+                    val curCol = startCoord.col + (endCoord.col - startCoord.col) * t
+                    val elevation = 20f * sin(PI.toFloat() * t)
+
+                    setAnimatingToken(tokenId, GridCoord(curRow, curCol), elevation)
+                    delay(frameDelay)
+                }
+                soundManager.playTokenStep()
             }
-            soundManager.playTokenStep()
         }
 
         setAnimatingToken(null, null, 0f)
-        setHopAnimating(false)
 
+        // Step 2: Execute move in engine
         val (nextState, outcome) = LudoGameEngine.executeMove(currentState, tokenId)
+
         when (outcome) {
             is MoveOutcome.Moved -> {
-                if (outcome.capturedPlayerColor != null) soundManager.playCapture()
-                else if (outcome.tokenFinished) soundManager.playTokenHome()
+                // Step 3: Check for capture animation (~1.2s)
+                if (outcome.capturedPlayerColor != null && outcome.capturedTokenId != null) {
+                    val victimColor = outcome.capturedPlayerColor
+                    val victimTokenId = outcome.capturedTokenId
+                    val victimYardSlots = when (victimColor) {
+                        PlayerColor.RED -> BoardCoordinates.RED_YARD_SLOTS
+                        PlayerColor.GREEN -> BoardCoordinates.GREEN_YARD_SLOTS
+                        PlayerColor.YELLOW -> BoardCoordinates.YELLOW_YARD_SLOTS
+                        PlayerColor.BLUE -> BoardCoordinates.BLUE_YARD_SLOTS
+                    }
+                    val targetYardSlot = victimYardSlots[victimTokenId.coerceIn(0, 3)]
+                    val landingCoord = BoardCoordinates.TRACK_TILES[currPlayer.color.stepToTrackIndex(token.stepsTraveled + currentState.diceValue)]
+
+                    soundManager.playCapture()
+
+                    onShowToast(
+                        GameToastNotification(
+                            title = "CAPTURED!",
+                            subtitle = "${currPlayer.name} captured ${victimColor.displayName}!",
+                            accentColor = currPlayer.color.primaryColor,
+                            icon = Icons.Default.ElectricBolt
+                        )
+                    )
+
+                    // Execute ~1.2s capture animation if not OFF
+                    if (animationIntensity != AnimationIntensity.OFF) {
+                        val captureTotalFrames = if (animationIntensity == AnimationIntensity.REDUCED) 14 else 28
+                        val frameMs = 1200L / captureTotalFrames
+
+                        for (step in 1..captureTotalFrames) {
+                            val progress = step.toFloat() / captureTotalFrames
+                            setCaptureAnimation(
+                                ActiveCaptureAnimation(
+                                    attackerColor = currPlayer.color,
+                                    victimColor = victimColor,
+                                    victimTokenId = victimTokenId,
+                                    startCoord = landingCoord,
+                                    yardSlotCoord = targetYardSlot,
+                                    progress = progress
+                                )
+                            )
+
+                            // Board shake during impact (first 25%)
+                            if (progress < 0.25f) {
+                                val shakeProgress = progress / 0.25f
+                                val shakeMagnitude = (1f - shakeProgress) * 7f
+                                val sx = sin(shakeProgress * 6 * PI.toFloat()) * shakeMagnitude
+                                val sy = cos(shakeProgress * 6 * PI.toFloat()) * shakeMagnitude
+                                setShakeOffset(sx, sy)
+                            } else {
+                                setShakeOffset(0f, 0f)
+                            }
+
+                            delay(frameMs)
+                        }
+                    }
+
+                    setShakeOffset(0f, 0f)
+                    setCaptureAnimation(null)
+                }
+
+                // Step 4: Check for winning pawn finish celebration
+                if (outcome.tokenFinished) {
+                    soundManager.playTokenHome()
+                    val isFourth = outcome.finishOrder == 4
+                    val targetSlot = BoardCoordinates.finishedSlot(currPlayer.color, outcome.finishOrder)
+
+                    onShowToast(
+                        GameToastNotification(
+                            title = if (isFourth) "MATCH WINNER!" else "HOME SAFE!",
+                            subtitle = "${currPlayer.name}'s pawn reached the center!",
+                            accentColor = StarGold,
+                            icon = if (isFourth) Icons.Default.EmojiEvents else Icons.Default.Stars
+                        )
+                    )
+
+                    if (animationIntensity != AnimationIntensity.OFF) {
+                        val finishFrames = if (animationIntensity == AnimationIntensity.REDUCED) 12 else 22
+                        val frameMs = 900L / finishFrames
+
+                        for (step in 1..finishFrames) {
+                            val progress = step.toFloat() / finishFrames
+                            setFinishAnimation(
+                                ActiveFinishAnimation(
+                                    playerColor = currPlayer.color,
+                                    tokenId = tokenId,
+                                    targetSlotCoord = targetSlot,
+                                    finishOrder = outcome.finishOrder,
+                                    isFourthPawn = isFourth,
+                                    progress = progress
+                                )
+                            )
+                            delay(frameMs)
+                        }
+                    }
+
+                    setFinishAnimation(null)
+
+                    if (isFourth) {
+                        // Grand celebration delay before victory screen transition
+                        soundManager.playVictory()
+                        delay(600)
+                        setHopAnimating(false)
+                        onGameFinished(nextState)
+                        return@launch
+                    }
+                }
             }
             else -> {}
         }
+
+        setHopAnimating(false)
         onStateUpdated(nextState)
     }
 }

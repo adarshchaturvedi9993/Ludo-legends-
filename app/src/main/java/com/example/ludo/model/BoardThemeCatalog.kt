@@ -2,6 +2,15 @@ package com.example.ludo.model
 
 import androidx.compose.ui.graphics.Color
 
+enum class BoardStyle {
+    ROYAL_NAVY,
+    ROYAL_GOLD,
+    MIDNIGHT_OBSIDIAN,
+    CYBERPUNK_NEON,
+    CLASSIC_WOOD,
+    NEBULA_GALAXY
+}
+
 /**
  * Exclusive Ludo Board Theme model.
  * Includes the default Royal Navy theme and 5 exclusive themes (150 coins each).
@@ -21,7 +30,8 @@ data class BoardTheme(
     val yardSurfaceGreen: Color = Color(0xFF10241A),
     val yardSurfaceYellow: Color = Color(0xFF242012),
     val yardSurfaceBlue: Color = Color(0xFF121C2B),
-    val centerStarGradient: List<Color> = listOf(Color(0xFFFDE68A), Color(0xFFD97706), Color(0xFF78350F))
+    val centerStarGradient: List<Color> = listOf(Color(0xFFFDE68A), Color(0xFFD97706), Color(0xFF78350F)),
+    val boardStyle: BoardStyle = BoardStyle.ROYAL_NAVY
 )
 
 object BoardThemeCatalog {
@@ -32,13 +42,14 @@ object BoardThemeCatalog {
         displayName = "Royal Navy",
         priceCoins = 0,
         isDefaultUnlocked = true,
-        description = "Standard midnight sapphire board with brass gold filigree",
+        description = "Compass-rose lines, beveled rounded track tiles, and royal gold filigree",
         boardBackground = Color(0xFF090E1A),
         gridBorder = Color(0xFF24334D),
         gridCell = Color(0xFF0D1829),
         alternateCell = Color(0xFF112038),
         starColor = Color(0xFFF6C928),
-        centerStarGradient = listOf(Color(0xFFFDE68A), Color(0xFFD97706), Color(0xFF78350F))
+        centerStarGradient = listOf(Color(0xFFFDE68A), Color(0xFFD97706), Color(0xFF78350F)),
+        boardStyle = BoardStyle.ROYAL_NAVY
     )
 
     // 5 Exclusive Themes (150 coins each)
@@ -47,7 +58,7 @@ object BoardThemeCatalog {
         displayName = "Royal Gold",
         priceCoins = PRICE_PER_THEME,
         isDefaultUnlocked = false,
-        description = "Luxury burnished gold foil with opulent ivory-trimmed cells",
+        description = "Diamond-lattice foil sweep, inset diamond tile inlays, and double gold frame",
         boardBackground = Color(0xFF18150D),
         gridBorder = Color(0xFF5E491E),
         gridCell = Color(0xFF241F14),
@@ -57,7 +68,8 @@ object BoardThemeCatalog {
         yardSurfaceGreen = Color(0xFF1A2B1E),
         yardSurfaceYellow = Color(0xFF362E17),
         yardSurfaceBlue = Color(0xFF172233),
-        centerStarGradient = listOf(Color(0xFFFFFBEB), Color(0xFFF59E0B), Color(0xFFB45309))
+        centerStarGradient = listOf(Color(0xFFFFFBEB), Color(0xFFF59E0B), Color(0xFFB45309)),
+        boardStyle = BoardStyle.ROYAL_GOLD
     )
 
     val THEME_MIDNIGHT_OBSIDIAN = BoardTheme(
@@ -65,7 +77,7 @@ object BoardThemeCatalog {
         displayName = "Midnight Obsidian",
         priceCoins = PRICE_PER_THEME,
         isDefaultUnlocked = false,
-        description = "Stealth volcanic glass slate with razor-sharp gunmetal borders",
+        description = "Cut-glass facets, razor-sharp gunmetal glints, and silver corner brackets",
         boardBackground = Color(0xFF070709),
         gridBorder = Color(0xFF27272A),
         gridCell = Color(0xFF121215),
@@ -75,7 +87,8 @@ object BoardThemeCatalog {
         yardSurfaceGreen = Color(0xFF112015),
         yardSurfaceYellow = Color(0xFF221F10),
         yardSurfaceBlue = Color(0xFF111824),
-        centerStarGradient = listOf(Color(0xFFFAFAFA), Color(0xFFA1A1AA), Color(0xFF3F3F46))
+        centerStarGradient = listOf(Color(0xFFFAFAFA), Color(0xFFA1A1AA), Color(0xFF3F3F46)),
+        boardStyle = BoardStyle.MIDNIGHT_OBSIDIAN
     )
 
     val THEME_CYBERPUNK_NEON = BoardTheme(
@@ -83,7 +96,7 @@ object BoardThemeCatalog {
         displayName = "Cyberpunk Neon",
         priceCoins = PRICE_PER_THEME,
         isDefaultUnlocked = false,
-        description = "Futuristic synthwave grid with electric magenta and cyan lines",
+        description = "Luminescent circuit traces, neon-outlined cells, scanlines, and dual neon frame",
         boardBackground = Color(0xFF090614),
         gridBorder = Color(0xFF4C1D95),
         gridCell = Color(0xFF140D2B),
@@ -93,7 +106,8 @@ object BoardThemeCatalog {
         yardSurfaceGreen = Color(0xFF0A2B20),
         yardSurfaceYellow = Color(0xFF30260D),
         yardSurfaceBlue = Color(0xFF0E1A38),
-        centerStarGradient = listOf(Color(0xFF67E8F9), Color(0xFFC084FC), Color(0xFFEC4899))
+        centerStarGradient = listOf(Color(0xFF67E8F9), Color(0xFFC084FC), Color(0xFFEC4899)),
+        boardStyle = BoardStyle.CYBERPUNK_NEON
     )
 
     val THEME_CLASSIC_WOOD = BoardTheme(
@@ -101,7 +115,7 @@ object BoardThemeCatalog {
         displayName = "Classic Wood",
         priceCoins = PRICE_PER_THEME,
         isDefaultUnlocked = false,
-        description = "Aged mahogany grain with antique brass studs and warm parchment",
+        description = "Mahogany planks with authentic wood grain, antique brass studs, and warm lamp glow",
         boardBackground = Color(0xFF1C110A),
         gridBorder = Color(0xFF4A301D),
         gridCell = Color(0xFF2B1C12),
@@ -111,7 +125,8 @@ object BoardThemeCatalog {
         yardSurfaceGreen = Color(0xFF172D1E),
         yardSurfaceYellow = Color(0xFF382F16),
         yardSurfaceBlue = Color(0xFF182436),
-        centerStarGradient = listOf(Color(0xFFFEF3C7), Color(0xFFD97706), Color(0xFF78350F))
+        centerStarGradient = listOf(Color(0xFFFEF3C7), Color(0xFFD97706), Color(0xFF78350F)),
+        boardStyle = BoardStyle.CLASSIC_WOOD
     )
 
     val THEME_NEBULA_GALAXY = BoardTheme(
@@ -119,7 +134,7 @@ object BoardThemeCatalog {
         displayName = "Nebula Galaxy",
         priceCoins = PRICE_PER_THEME,
         isDefaultUnlocked = false,
-        description = "Deep celestial cosmos bathed in starlight violet and astral dust",
+        description = "Celestial cosmic nebula clouds, round glowing star tiles, and twinkling stellar dust",
         boardBackground = Color(0xFF0B061A),
         gridBorder = Color(0xFF3B246B),
         gridCell = Color(0xFF160E30),
@@ -129,7 +144,8 @@ object BoardThemeCatalog {
         yardSurfaceGreen = Color(0xFF0F2625),
         yardSurfaceYellow = Color(0xFF2C2412),
         yardSurfaceBlue = Color(0xFF101938),
-        centerStarGradient = listOf(Color(0xFFE9D5FF), Color(0xFFA855F7), Color(0xFF4C1D95))
+        centerStarGradient = listOf(Color(0xFFE9D5FF), Color(0xFFA855F7), Color(0xFF4C1D95)),
+        boardStyle = BoardStyle.NEBULA_GALAXY
     )
 
     val allThemes = listOf(

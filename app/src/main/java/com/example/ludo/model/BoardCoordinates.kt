@@ -148,6 +148,40 @@ object BoardCoordinates {
         PlayerColor.BLUE to GridCoord(7.8f, 7.0f)
     )
 
+    /**
+     * Neat 2x2 layout inside each color's center goal triangle for finished pawns (order 1..4).
+     * Prevents stacking and renders each pawn in its dedicated finish quadrant.
+     */
+    fun finishedSlot(color: PlayerColor, order: Int): GridCoord {
+        val slotIndex = (order - 1).coerceIn(0, 3)
+        return when (color) {
+            PlayerColor.RED -> when (slotIndex) {
+                0 -> GridCoord(6.70f, 6.20f)
+                1 -> GridCoord(6.70f, 6.50f)
+                2 -> GridCoord(7.30f, 6.20f)
+                else -> GridCoord(7.30f, 6.50f)
+            }
+            PlayerColor.GREEN -> when (slotIndex) {
+                0 -> GridCoord(6.25f, 6.75f)
+                1 -> GridCoord(6.25f, 7.25f)
+                2 -> GridCoord(6.55f, 6.75f)
+                else -> GridCoord(6.55f, 7.25f)
+            }
+            PlayerColor.YELLOW -> when (slotIndex) {
+                0 -> GridCoord(6.75f, 7.45f)
+                1 -> GridCoord(6.75f, 7.75f)
+                2 -> GridCoord(7.25f, 7.45f)
+                else -> GridCoord(7.25f, 7.75f)
+            }
+            PlayerColor.BLUE -> when (slotIndex) {
+                0 -> GridCoord(7.45f, 6.75f)
+                1 -> GridCoord(7.45f, 7.25f)
+                2 -> GridCoord(7.75f, 6.75f)
+                else -> GridCoord(7.75f, 7.25f)
+            }
+        }
+    }
+
     fun getCoordinate(token: Token): GridCoord {
         return when (token.state) {
             TokenState.YARD -> {
@@ -174,7 +208,8 @@ object BoardCoordinates {
                 homeList[idx]
             }
             TokenState.FINISHED -> {
-                FINISH_GOAL[token.color] ?: GridCoord(7f, 7f)
+                val order = if (token.finishOrder in 1..4) token.finishOrder else (token.id + 1)
+                finishedSlot(token.color, order)
             }
         }
     }
@@ -209,7 +244,8 @@ object BoardCoordinates {
                         if (homeStep in 1..5) {
                             path.add(homeList[homeStep - 1])
                         } else if (homeStep == 6) {
-                            path.add(FINISH_GOAL[token.color] ?: GridCoord(7f, 7f))
+                            val order = if (token.finishOrder in 1..4) token.finishOrder else (token.id + 1)
+                            path.add(finishedSlot(token.color, order))
                         }
                     }
                 }
@@ -226,7 +262,8 @@ object BoardCoordinates {
                     if (targetHomeStep in 1..5) {
                         path.add(homeList[targetHomeStep - 1])
                     } else if (targetHomeStep == 6) {
-                        path.add(FINISH_GOAL[token.color] ?: GridCoord(7f, 7f))
+                        val order = if (token.finishOrder in 1..4) token.finishOrder else (token.id + 1)
+                        path.add(finishedSlot(token.color, order))
                     }
                 }
             }

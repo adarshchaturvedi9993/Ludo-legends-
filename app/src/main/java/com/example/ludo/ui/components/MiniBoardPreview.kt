@@ -57,7 +57,9 @@ fun MiniBoardPreview(
             val totalSize = size.width.coerceAtMost(size.height)
             val cell = totalSize / 15f
 
+            LudoBoardStyling.drawBoardStyleBackground(this, totalSize, cell, theme, ambientPhase = 0.4f)
             drawMiniLudoBoard(cell = cell, theme = theme)
+            LudoBoardStyling.drawBoardFrame(this, totalSize, theme)
         }
     }
 }

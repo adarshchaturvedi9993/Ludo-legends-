@@ -12,10 +12,9 @@
 #   public *;
 #}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Keep Ludo models for JSON serialization, reflection, and state persistence
+-keep class com.example.ludo.model.** { *; }
+-keepclassmembers class com.example.ludo.model.** { *; }
+-keep class com.example.ludo.data.** { *; }
+-keep class com.example.ludo.engine.** { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile

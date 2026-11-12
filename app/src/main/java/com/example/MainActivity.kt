@@ -342,11 +342,6 @@ fun LudoAppContent(
         }
 
         Screen.GAME -> {
-            BackHandler {
-                soundManager.playButtonTap()
-                currentScreen = Screen.HOME
-            }
-
             val state = activeGameState ?: GameState(
                 players = listOf(
                     Player(0, "Player 1", PlayerColor.RED),

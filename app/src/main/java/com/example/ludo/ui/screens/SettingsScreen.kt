@@ -2,6 +2,7 @@ package com.example.ludo.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -86,6 +87,7 @@ fun SettingsScreen(
     var isTurnTimerOn by remember { mutableStateOf(gamePreferences.isTurnTimerEnabled) }
     var isColorBlindOn by remember { mutableStateOf(gamePreferences.isColorBlindModeEnabled) }
     var isReduceMotionOn by remember { mutableStateOf(gamePreferences.isReduceMotionEnabled) }
+    var animIntensity by remember { mutableStateOf(gamePreferences.animationIntensity) }
     var showClearSavedDialog by remember { mutableStateOf(false) }
 
     val scrollState = rememberScrollState()
@@ -227,9 +229,9 @@ fun SettingsScreen(
                     }
                 }
 
-                // 3. Accessibility Section
+                // 3. Accessibility & Performance Section
                 Text(
-                    text = "ACCESSIBILITY & MOTION",
+                    text = "ACCESSIBILITY & PERFORMANCE",
                     style = Typography.labelLarge.copy(
                         fontSize = 11.sp,
                         letterSpacing = 1.0.sp,
@@ -247,6 +249,31 @@ fun SettingsScreen(
                         .padding(14.dp)
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        SettingSegmentedRow(
+                            icon = Icons.Outlined.Animation,
+                            title = "Animation Intensity",
+                            description = "Full: 60fps sweeps & particles • Reduced: fast hops • Off: instant",
+                            options = listOf("Full", "Reduced", "Off"),
+                            selectedIndex = when (animIntensity) {
+                                com.example.ludo.data.AnimationIntensity.FULL -> 0
+                                com.example.ludo.data.AnimationIntensity.REDUCED -> 1
+                                com.example.ludo.data.AnimationIntensity.OFF -> 2
+                            },
+                            onSelect = { idx ->
+                                val newIntensity = when (idx) {
+                                    0 -> com.example.ludo.data.AnimationIntensity.FULL
+                                    1 -> com.example.ludo.data.AnimationIntensity.REDUCED
+                                    else -> com.example.ludo.data.AnimationIntensity.OFF
+                                }
+                                animIntensity = newIntensity
+                                gamePreferences.animationIntensity = newIntensity
+                                isReduceMotionOn = (newIntensity != com.example.ludo.data.AnimationIntensity.FULL)
+                                soundManager.playButtonTap()
+                            }
+                        )
+
+                        DividerLine()
+
                         SettingSwitchRow(
                             icon = Icons.Outlined.Visibility,
                             title = "Color-Blind Symbols",
@@ -256,21 +283,6 @@ fun SettingsScreen(
                             onCheckedChange = { checked ->
                                 isColorBlindOn = checked
                                 gamePreferences.isColorBlindModeEnabled = checked
-                                soundManager.playButtonTap()
-                            }
-                        )
-
-                        DividerLine()
-
-                        SettingSwitchRow(
-                            icon = Icons.Outlined.Animation,
-                            title = "Reduce Motion",
-                            description = "Minimizes particle effects and transitions",
-                            checked = isReduceMotionOn,
-                            testTag = "reduce_motion_switch",
-                            onCheckedChange = { checked ->
-                                isReduceMotionOn = checked
-                                gamePreferences.isReduceMotionEnabled = checked
                                 soundManager.playButtonTap()
                             }
                         )
@@ -503,4 +515,71 @@ private fun DividerLine() {
             .height(1.dp)
             .background(BorderHairline)
     )
+}
+
+@Composable
+private fun SettingSegmentedRow(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = TextSecondary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(title, style = Typography.bodyLarge, color = TextPrimary)
+                Text(description, style = Typography.bodyMedium.copy(fontSize = 11.sp), color = TextMuted)
+            }
+        }
+
+        // Segmented selector buttons
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(SurfaceElevated)
+                .border(1.dp, BorderHairline, RoundedCornerShape(8.dp))
+                .padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            options.forEachIndexed { idx, opt ->
+                val isSelected = idx == selectedIndex
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(34.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (isSelected) AccentPrimary else Color.Transparent)
+                        .clickable { onSelect(idx) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = opt,
+                        style = Typography.labelMedium.copy(
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        ),
+                        color = if (isSelected) SurfaceBackground else TextSecondary
+                    )
+                }
+            }
+        }
+    }
 }
