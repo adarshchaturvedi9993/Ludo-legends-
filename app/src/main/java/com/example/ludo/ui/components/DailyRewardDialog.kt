@@ -292,12 +292,16 @@ fun DailyRewardDialog(
                         contentAlignment = Alignment.Center
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = if (currentTier.isMysteryBox) Icons.Default.CardGiftcard else Icons.Outlined.MonetizationOn,
-                                contentDescription = null,
-                                tint = Color(0xFF101626),
-                                modifier = Modifier.size(20.dp)
-                            )
+                            if (currentTier.isMysteryBox) {
+                                Icon(
+                                    imageVector = Icons.Default.CardGiftcard,
+                                    contentDescription = null,
+                                    tint = Color(0xFF101626),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            } else {
+                                Real3DGoldCoin(size = 20.dp)
+                            }
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = if (currentTier.isMysteryBox) "Open Day 7 Mystery Box!" else "Claim Day ${status.currentStreakDay} (+${currentTier.coinReward} Coins)",
@@ -456,12 +460,7 @@ private fun DayRewardCard(
                         )
                     }
                     else -> {
-                        Icon(
-                            imageVector = Icons.Outlined.MonetizationOn,
-                            contentDescription = "Coins",
-                            tint = StarGold,
-                            modifier = Modifier.size(16.dp)
-                        )
+                        Real3DGoldCoin(size = 18.dp)
                     }
                 }
             }

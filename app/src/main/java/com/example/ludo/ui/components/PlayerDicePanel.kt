@@ -213,7 +213,7 @@ fun PlayerDicePanel(
                                             .size(8.dp)
                                             .clip(CircleShape)
                                             .background(player.color.primaryColor)
-                                            .border(0.8.dp, Color.White.copy(alpha = 0.8f), CircleShape)
+                                            .border(0.8.dp, player.color.accentColor, CircleShape)
                                     )
                                 }
                                 TokenState.YARD -> {

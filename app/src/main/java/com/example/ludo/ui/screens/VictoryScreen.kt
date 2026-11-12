@@ -40,6 +40,7 @@ import com.example.ludo.ui.components.ConfettiEffect
 import com.example.ludo.ui.components.GameBackground
 import com.example.ludo.ui.components.GameButton
 import com.example.ludo.ui.components.GameButtonStyle
+import com.example.ludo.ui.components.Real3DGoldCoin
 import com.example.ludo.ui.components.TurnedPawn
 import com.example.ui.theme.AccentPrimary
 import com.example.ui.theme.BorderHairline
@@ -204,15 +205,10 @@ fun VictoryScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Stars,
-                                    contentDescription = null,
-                                    tint = StarGold,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                Real3DGoldCoin(size = 20.dp)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "2X VICTORY REWARDS CLAIMED (+1000 XP & Reroll)",
+                                    text = "2X VICTORY REWARDS CLAIMED (+50 Coins & Reroll)",
                                     style = Typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                     color = StarGold
                                 )

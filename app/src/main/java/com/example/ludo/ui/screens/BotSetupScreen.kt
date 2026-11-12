@@ -25,8 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SmartToy
-import androidx.compose.material.icons.outlined.ShoppingBag
-import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -49,18 +47,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ludo.ads.BannerAdView
 import com.example.ludo.data.GamePreferences
-import com.example.ludo.model.BoardTheme
 import com.example.ludo.model.BoardThemeCatalog
 import com.example.ludo.model.BotDifficulty
 import com.example.ludo.model.PawnColorCatalog
 import com.example.ludo.model.PawnColorSkin
 import com.example.ludo.model.Player
 import com.example.ludo.model.PlayerColor
+import com.example.ludo.ui.components.BoardThemeShopRow
 import com.example.ludo.ui.components.CoinBalanceChip
+import com.example.ludo.ui.components.CoinPurchaseConfirmDialog
 import com.example.ludo.ui.components.GameBackground
 import com.example.ludo.ui.components.GameButton
 import com.example.ludo.ui.components.GameButtonStyle
 import com.example.ludo.ui.components.GameTopBar
+import com.example.ludo.ui.components.Real3DGoldCoin
 import com.example.ludo.ui.components.TurnedPawn
 import com.example.ui.theme.AccentPrimary
 import com.example.ui.theme.BorderHairline
@@ -90,12 +90,13 @@ fun BotSetupScreen(
         mutableStateOf(gamePreferences?.selectedBoardThemeId ?: BoardThemeCatalog.THEME_ROYAL_NAVY.id)
     }
 
-    var dialogMessage by remember { mutableStateOf<String?>(null) }
     var userCoins by remember { mutableIntStateOf(gamePreferences?.coinsBalance ?: 50) }
     val currentCoins = gamePreferences?.coinsBalance ?: userCoins
 
+    // Confirmation dialog state for pawn skin purchase
+    var confirmPurchaseSkin by remember { mutableStateOf<PawnColorSkin?>(null) }
+
     val scrollState = rememberScrollState()
-    val themeScrollState = rememberScrollState()
     val allColors = listOf(PlayerColor.RED, PlayerColor.GREEN, PlayerColor.YELLOW, PlayerColor.BLUE)
 
     val currentCustomSkin = PawnColorCatalog.getSkinById(selectedCustomSkinId)
@@ -114,8 +115,8 @@ fun BotSetupScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 GameTopBar(
-                    title = "AI Match Setup & Shop",
-                    subtitle = "Solo Arena",
+                    title = "AI Arena & Themes",
+                    subtitle = "Solo Match Setup",
                     onBackClick = onBackClick,
                     modifier = Modifier.weight(1f)
                 )
@@ -133,135 +134,19 @@ fun BotSetupScreen(
                     .padding(vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // 1. BOARD THEMES SHOP (150 Coins each)
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Outlined.ShoppingBag,
-                            contentDescription = null,
-                            tint = StarGold,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "EXCLUSIVE BOARD THEMES (150 🪙)",
-                            style = Typography.labelLarge.copy(
-                                fontSize = 11.sp,
-                                letterSpacing = 0.8.sp,
-                                fontWeight = FontWeight.Bold
-                            ),
-                            color = StarGold
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(themeScrollState),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        BoardThemeCatalog.allThemes.forEach { theme ->
-                            val isUnlocked = gamePreferences?.isBoardThemeUnlocked(theme.id) ?: theme.isDefaultUnlocked
-                            val isSelected = selectedThemeId == theme.id
-
-                            Box(
-                                modifier = Modifier
-                                    .width(130.dp)
-                                    .height(105.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(theme.boardBackground)
-                                    .border(if (isSelected) 2.dp else 1.dp, if (isSelected) StarGold else BorderHairline, RoundedCornerShape(12.dp))
-                                    .clickable {
-                                        if (isUnlocked) {
-                                            selectedThemeId = theme.id
-                                            gamePreferences?.selectedBoardThemeId = theme.id
-                                        } else {
-                                            if (gamePreferences?.unlockBoardTheme(theme.id) == true) {
-                                                selectedThemeId = theme.id
-                                                userCoins = gamePreferences.coinsBalance
-                                                dialogMessage = "Unlocked ${theme.displayName} for 150 coins!"
-                                            } else {
-                                                dialogMessage = "Need 150 coins! Watch video ads (+50 coins each) to earn more!"
-                                            }
-                                        }
-                                    }
-                                    .padding(8.dp)
-                                    .testTag("bot_theme_${theme.id}"),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    modifier = Modifier.fillMaxSize(),
-                                    verticalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(16.dp)
-                                                .clip(CircleShape)
-                                                .background(theme.starColor)
-                                        )
-
-                                        if (isSelected) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(4.dp))
-                                                    .background(StarGold)
-                                                    .padding(horizontal = 4.dp, vertical = 1.dp)
-                                            ) {
-                                                Text(
-                                                    text = "EQUIPPED",
-                                                    style = Typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
-                                                    color = Color(0xFF101626)
-                                                )
-                                            }
-                                        } else if (!isUnlocked) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(4.dp))
-                                                    .background(Color(0xFF271C0B))
-                                                    .border(1.dp, StarGold.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
-                                                    .padding(horizontal = 4.dp, vertical = 1.dp)
-                                            ) {
-                                                Text(
-                                                    text = "150 🪙",
-                                                    style = Typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
-                                                    color = StarGold
-                                                )
-                                            }
-                                        } else {
-                                            Text(
-                                                text = "OWNED",
-                                                style = Typography.labelSmall.copy(fontSize = 8.sp, color = AccentPrimary)
-                                            )
-                                        }
-                                    }
-
-                                    Column {
-                                        Text(
-                                            text = theme.displayName,
-                                            style = Typography.labelMedium.copy(
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold
-                                            ),
-                                            color = Color.White,
-                                            maxLines = 1
-                                        )
-                                        Text(
-                                            text = if (isUnlocked) "Tap to equip" else "Tap to unlock",
-                                            style = Typography.labelSmall.copy(fontSize = 9.sp),
-                                            color = TextMuted,
-                                            maxLines = 1
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                // 1. BOARD THEMES SHOP WITH LIVE PREVIEWS & CONFIRMATION
+                BoardThemeShopRow(
+                    selectedThemeId = selectedThemeId,
+                    gamePreferences = gamePreferences,
+                    currentCoins = currentCoins,
+                    onThemeEquipped = { themeId ->
+                        selectedThemeId = themeId
+                    },
+                    onCoinsUpdated = { newCoins ->
+                        userCoins = newCoins
+                    },
+                    onWatchRewardAd = onWatchRewardAd
+                )
 
                 // 2. Opponent Count
                 Text(
@@ -397,7 +282,7 @@ fun BotSetupScreen(
 
                 // 4. User Profile & Team Color & Pawn Skin
                 Text(
-                    text = "YOUR PROFILE & CUSTOM PAWN (25 🪙)",
+                    text = "YOUR PROFILE & CUSTOM PAWN",
                     style = Typography.labelLarge.copy(
                         fontSize = 12.sp,
                         letterSpacing = 1.0.sp,
@@ -458,7 +343,7 @@ fun BotSetupScreen(
                                         .fillMaxWidth()
                                         .padding(top = 1.dp)
                                         .testTag("bot_user_name_input")
-                                )
+                                    )
                             }
                         }
 
@@ -506,15 +391,26 @@ fun BotSetupScreen(
                             }
                         }
 
-                        // Premium Pawn Color Skin Selector
-                        Text(
-                            text = "CUSTOM PAWN COLOR (25 🪙 EACH):",
-                            style = Typography.labelSmall.copy(
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = StarGold
+                        // Premium Pawn Color Skin Selector (25 Coins)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "CUSTOM PAWN COLOR:",
+                                style = Typography.labelSmall.copy(
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = StarGold
+                                )
                             )
-                        )
+                            Text(
+                                text = "25 🪙 each",
+                                style = Typography.labelSmall.copy(fontSize = 9.sp),
+                                color = TextMuted
+                            )
+                        }
 
                         val botSkinRowState = rememberScrollState()
                         Row(
@@ -557,18 +453,17 @@ fun BotSetupScreen(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(if (isSkinSelected) SurfaceElevated else SurfaceCard)
-                                        .border(if (isSkinSelected) 1.5.dp else 1.dp, if (isSkinSelected) skin.primaryColor else if (isSkinUnlocked) BorderHairline else StarGold.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                                        .border(
+                                            if (isSkinSelected) 1.5.dp else 1.dp,
+                                            if (isSkinSelected) skin.primaryColor else if (isSkinUnlocked) BorderHairline else StarGold.copy(alpha = 0.4f),
+                                            RoundedCornerShape(8.dp)
+                                        )
                                         .clickable {
                                             if (isSkinUnlocked) {
                                                 selectedCustomSkinId = skin.id
                                             } else {
-                                                if (gamePreferences?.unlockPawnColor(skin.id) == true) {
-                                                    selectedCustomSkinId = skin.id
-                                                    userCoins = gamePreferences.coinsBalance
-                                                    dialogMessage = "Unlocked ${skin.displayName} for 25 coins!"
-                                                } else {
-                                                    dialogMessage = "Need 25 coins for ${skin.displayName}! Watch a video ad (+50 coins) to unlock!"
-                                                }
+                                                // Ask for confirmation before deducting coins!
+                                                confirmPurchaseSkin = skin
                                             }
                                         }
                                         .padding(horizontal = 8.dp, vertical = 6.dp)
@@ -594,11 +489,15 @@ fun BotSetupScreen(
                                                 color = if (isSkinSelected) TextPrimary else TextSecondary
                                             )
                                             if (!isSkinUnlocked) {
-                                                Text(
-                                                    text = "25 🪙",
-                                                    style = Typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
-                                                    color = StarGold
-                                                )
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Real3DGoldCoin(size = 9.dp)
+                                                    Spacer(modifier = Modifier.width(2.dp))
+                                                    Text(
+                                                        text = "25",
+                                                        style = Typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+                                                        color = StarGold
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -661,51 +560,41 @@ fun BotSetupScreen(
             }
         }
 
-        // Notification Modal for shop transactions
-        if (dialogMessage != null) {
-            BasicAlertDialog(
-                onDismissRequest = { dialogMessage = null },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFF0F1A2E))
-                    .border(1.dp, BorderHairline, RoundedCornerShape(16.dp))
-                    .padding(18.dp)
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        text = "TREASURY & SHOP",
-                        style = Typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = StarGold
+        // Strict Confirmation Dialog before deducting coins for Pawn Skin
+        if (confirmPurchaseSkin != null) {
+            val skin = confirmPurchaseSkin!!
+            CoinPurchaseConfirmDialog(
+                itemName = "${skin.displayName} Pawn Skin",
+                itemCategory = "Premium Pawn Customization",
+                itemDescription = "Equip a distinctive custom lacquer color on your game pawns.",
+                priceCoins = 25,
+                currentCoins = currentCoins,
+                previewContent = {
+                    TurnedPawn(
+                        color = userColor,
+                        isMovable = false,
+                        isFinished = false,
+                        size = 46.dp,
+                        customPrimaryColor = skin.primaryColor,
+                        customAccentColor = skin.accentColor,
+                        customDarkShade = skin.darkShade
                     )
-                    Text(
-                        text = dialogMessage ?: "",
-                        style = Typography.bodyMedium.copy(fontSize = 13.sp),
-                        color = Color.White
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(40.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(StarGold)
-                            .clickable { dialogMessage = null },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Got It",
-                            style = Typography.labelMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF090E1A)
-                            )
-                        )
+                },
+                onConfirm = {
+                    if (gamePreferences?.unlockPawnColor(skin.id) == true) {
+                        selectedCustomSkinId = skin.id
+                        userCoins = gamePreferences.coinsBalance
                     }
+                    confirmPurchaseSkin = null
+                },
+                onDismiss = {
+                    confirmPurchaseSkin = null
+                },
+                onWatchAd = {
+                    confirmPurchaseSkin = null
+                    onWatchRewardAd?.invoke()
                 }
-            }
+            )
         }
     }
 }

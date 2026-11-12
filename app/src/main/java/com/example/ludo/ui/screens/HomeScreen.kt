@@ -28,11 +28,15 @@ import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Stars
+import androidx.compose.material3.BasicAlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
@@ -64,9 +68,11 @@ import com.example.ludo.ads.RemoteConfigManager
 import com.example.ludo.data.GamePreferences
 import com.example.ludo.model.DailyClaimResult
 import com.example.ludo.model.DailyRewardStatus
+import com.example.ludo.ui.components.BoardThemeShopRow
 import com.example.ludo.ui.components.CoinBalanceChip
 import com.example.ludo.ui.components.DailyRewardDialog
 import com.example.ludo.ui.components.GameBackground
+import com.example.ludo.ui.components.Real3DGoldCoin
 import com.example.ludo.ui.components.StatChip
 import com.example.ui.theme.AccentPrimary
 import com.example.ui.theme.BorderHairline
@@ -96,6 +102,7 @@ import com.example.ludo.ui.components.StarterWelcomeDialog
  * - Native AdCard and developer credit footer.
  * - Bottom Banner sticked firmly to the bottom of the screen.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     hasSavedGame: Boolean,
@@ -128,6 +135,7 @@ fun HomeScreen(
         )
     }
     var showDailyRewardDialog by remember { mutableStateOf(false) }
+    var showThemesDialog by remember { mutableStateOf(false) }
     var lastClaimResult by remember { mutableStateOf<DailyClaimResult?>(null) }
     var showWelcomeDialog by remember {
         mutableStateOf(gamePreferences != null && !gamePreferences.isWelcomeBonusClaimed)
@@ -266,38 +274,6 @@ fun HomeScreen(
                                 onEarnCoinsClick = onWatchRewardAd
                             )
 
-                            // Daily Login Gift Button with notification indicator
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(if (dailyRewardStatus.canClaim || dailyRewardStatus.isStreakAtRisk) StarGold.copy(alpha = 0.15f) else SurfaceCard)
-                                    .border(
-                                        width = 1.dp,
-                                        color = if (dailyRewardStatus.canClaim) StarGold else if (dailyRewardStatus.isStreakAtRisk) StatusWarning else BorderHairline,
-                                        shape = CircleShape
-                                    )
-                                    .clickable { showDailyRewardDialog = true }
-                                    .testTag("daily_reward_button"),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CardGiftcard,
-                                    contentDescription = "Daily Rewards",
-                                    tint = if (dailyRewardStatus.canClaim) StarGold else if (dailyRewardStatus.isStreakAtRisk) StatusWarning else TextSecondary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                if (dailyRewardStatus.canClaim || dailyRewardStatus.isStreakAtRisk) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(8.dp)
-                                            .align(Alignment.TopEnd)
-                                            .clip(CircleShape)
-                                            .background(if (dailyRewardStatus.isStreakAtRisk) StatusWarning else StarGold)
-                                    )
-                                }
-                            }
-
                             Box(
                                 modifier = Modifier
                                     .size(40.dp)
@@ -349,18 +325,10 @@ fun HomeScreen(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(StarGold.copy(alpha = 0.2f))
-                                    .border(1.dp, StarGold, CircleShape),
+                                    .size(34.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Stars,
-                                    contentDescription = null,
-                                    tint = StarGold,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                Real3DGoldCoin(size = 28.dp)
                             }
 
                             Spacer(modifier = Modifier.width(12.dp))
@@ -446,19 +414,11 @@ fun HomeScreen(
                         }
                     }
 
-                    // 6. Utility Strip: Stats, Rules, Daily Rewards, Free Coins
+                    // 6. Utility Strip: Rules, Daily Bonus, Themes Shop, Free Coins (Zero Duplicates!)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        UtilityButton(
-                            modifier = Modifier.weight(1f),
-                            icon = Icons.Outlined.BarChart,
-                            title = "Stats",
-                            onClick = onStatsClick,
-                            testTag = "home_stats_card"
-                        )
-
                         UtilityButton(
                             modifier = Modifier.weight(1f),
                             icon = Icons.AutoMirrored.Outlined.HelpOutline,
@@ -476,9 +436,18 @@ fun HomeScreen(
                             testTag = "home_daily_card"
                         )
 
+                        UtilityButton(
+                            modifier = Modifier.weight(1.2f),
+                            icon = Icons.Outlined.Palette,
+                            title = "Themes",
+                            badge = "PREVIEWS",
+                            onClick = { showThemesDialog = true },
+                            testTag = "home_themes_card"
+                        )
+
                         if (onWatchRewardAd != null) {
                             UtilityButton(
-                                modifier = Modifier.weight(1.3f),
+                                modifier = Modifier.weight(1.2f),
                                 icon = Icons.Outlined.Stars,
                                 title = "Free Coins",
                                 badge = "+50 🪙",
@@ -553,6 +522,79 @@ fun HomeScreen(
                         showWelcomeDialog = false
                     }
                 )
+            }
+
+            // Board Themes & Previews Catalog Modal from Home
+            if (showThemesDialog) {
+                BasicAlertDialog(
+                    onDismissRequest = { showThemesDialog = false },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xFF0C1322))
+                        .border(1.2.dp, BorderHairline, RoundedCornerShape(20.dp))
+                        .padding(18.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Palette,
+                                    contentDescription = null,
+                                    tint = StarGold,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "BOARD THEMES & PREVIEWS",
+                                    style = Typography.titleMedium.copy(
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.8.sp
+                                    ),
+                                    color = StarGold
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .clip(CircleShape)
+                                    .background(SurfaceElevated)
+                                    .clickable { showThemesDialog = false },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Close",
+                                    tint = TextSecondary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        BoardThemeShopRow(
+                            selectedThemeId = gamePreferences?.selectedBoardThemeId ?: com.example.ludo.model.BoardThemeCatalog.THEME_ROYAL_NAVY.id,
+                            gamePreferences = gamePreferences,
+                            currentCoins = userCoins,
+                            onThemeEquipped = { themeId ->
+                                gamePreferences?.selectedBoardThemeId = themeId
+                            },
+                            onCoinsUpdated = { newCoins ->
+                                userCoins = newCoins
+                            },
+                            onWatchRewardAd = onWatchRewardAd
+                        )
+                    }
+                }
             }
         }
     }

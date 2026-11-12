@@ -196,7 +196,8 @@ fun StarterWelcomeDialog(
                     icon = Icons.Outlined.MonetizationOn,
                     iconTint = StarGold,
                     title = "+100 Gold Coins",
-                    subtitle = "Instant treasury credit for custom themes & skins"
+                    subtitle = "Instant treasury credit for custom themes & skins",
+                    customVisual = { Real3DGoldCoin(size = 22.dp) }
                 )
 
                 BountyPerkRow(
@@ -232,12 +233,7 @@ fun StarterWelcomeDialog(
                 contentAlignment = Alignment.Center
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.CardGiftcard,
-                        contentDescription = null,
-                        tint = Color(0xFF101626),
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Real3DGoldCoin(size = 20.dp)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Claim Starter Bounty (+100 Coins)",
@@ -258,7 +254,8 @@ private fun BountyPerkRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     iconTint: Color,
     title: String,
-    subtitle: String
+    subtitle: String,
+    customVisual: (@Composable () -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
@@ -269,20 +266,29 @@ private fun BountyPerkRow(
             .padding(horizontal = 12.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape)
-                .background(iconTint.copy(alpha = 0.15f))
-                .border(1.dp, iconTint.copy(alpha = 0.4f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = iconTint,
-                modifier = Modifier.size(18.dp)
-            )
+        if (customVisual != null) {
+            Box(
+                modifier = Modifier.size(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                customVisual()
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(iconTint.copy(alpha = 0.15f))
+                    .border(1.dp, iconTint.copy(alpha = 0.4f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
 
         Spacer(modifier = Modifier.width(12.dp))

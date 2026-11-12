@@ -57,22 +57,8 @@ fun CoinBalanceChip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // Gold Coin Icon
-        Box(
-            modifier = Modifier
-                .size(22.dp)
-                .clip(CircleShape)
-                .background(StarGold.copy(alpha = 0.2f))
-                .border(1.dp, StarGold, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.MonetizationOn,
-                contentDescription = "Coins",
-                tint = StarGold,
-                modifier = Modifier.size(15.dp)
-            )
-        }
+        // Real 3D Gold Coin
+        Real3DGoldCoin(size = 22.dp)
 
         Text(
             text = "$coins",
