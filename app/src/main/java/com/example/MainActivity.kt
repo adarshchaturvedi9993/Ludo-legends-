@@ -37,6 +37,11 @@ import com.example.ludo.ui.screens.SettingsScreen
 import com.example.ludo.ui.screens.SplashScreen
 import com.example.ludo.ui.screens.StatsScreen
 import com.example.ludo.ui.screens.VictoryScreen
+import androidx.compose.runtime.collectAsState
+import com.example.ludo.p2p.P2PGameManager
+import com.example.ludo.p2p.P2PEmoteMessage
+import com.example.ludo.p2p.P2PTransportType
+import com.example.ludo.ui.screens.NearbyMultiplayerScreen
 import com.example.ui.theme.LudoTheme
 import com.example.ui.theme.SurfaceBackground
 
@@ -46,6 +51,7 @@ enum class Screen {
     PLAYER_COUNT,
     COLOR_SELECTION,
     BOT_SETUP,
+    NEARBY_MULTIPLAYER,
     GAME,
     VICTORY,
     SETTINGS,
@@ -131,6 +137,19 @@ fun LudoAppContent(
     val context = LocalContext.current
     val activity = context as? Activity
 
+    val p2pManager = remember { P2PGameManager.getInstance(context) }
+    val p2pSyncedState by p2pManager.syncedGameState.collectAsState()
+    val p2pLocalPlayerIndex by p2pManager.localPlayerIndex.collectAsState()
+    val p2pTransportType by p2pManager.transportType.collectAsState()
+    var isP2PMatchActive by rememberSaveable { mutableStateOf(false) }
+    var latestP2PEmote by remember { mutableStateOf<P2PEmoteMessage?>(null) }
+
+    LaunchedEffect(Unit) {
+        p2pManager.emotesFlow.collect { emote ->
+            latestP2PEmote = emote
+        }
+    }
+
     LaunchedEffect(currentScreen) {
         LudoAds.setGameActive(currentScreen == Screen.GAME)
         if (currentScreen == Screen.GAME) {
@@ -166,6 +185,10 @@ fun LudoAppContent(
                 onPlayWithComputerClick = {
                     soundManager.playButtonTap()
                     currentScreen = Screen.BOT_SETUP
+                },
+                onNearbyMultiplayerClick = {
+                    soundManager.playButtonTap()
+                    currentScreen = Screen.NEARBY_MULTIPLAYER
                 },
                 onResumeMatchClick = {
                     soundManager.playButtonTap()
@@ -341,25 +364,70 @@ fun LudoAppContent(
             )
         }
 
-        Screen.GAME -> {
-            val state = activeGameState ?: GameState(
-                players = listOf(
-                    Player(0, "Player 1", PlayerColor.RED),
-                    Player(1, "Player 2", PlayerColor.YELLOW)
-                ),
-                statusMessage = "Player 1's turn to roll"
+        Screen.NEARBY_MULTIPLAYER -> {
+            BackHandler {
+                soundManager.playButtonTap()
+                p2pManager.leaveGame()
+                currentScreen = Screen.HOME
+            }
+
+            NearbyMultiplayerScreen(
+                gamePreferences = gamePreferences,
+                onBackClick = {
+                    soundManager.playButtonTap()
+                    p2pManager.leaveGame()
+                    currentScreen = Screen.HOME
+                },
+                onGameStarted = {
+                    soundManager.playButtonTap()
+                    isP2PMatchActive = true
+                    currentScreen = Screen.GAME
+                }
             )
+        }
+
+        Screen.GAME -> {
+            val state = if (isP2PMatchActive) {
+                p2pSyncedState ?: activeGameState ?: GameState(
+                    players = listOf(
+                        Player(0, "Player 1", PlayerColor.RED),
+                        Player(1, "Player 2", PlayerColor.YELLOW)
+                    ),
+                    statusMessage = "Player 1's turn to roll"
+                )
+            } else {
+                activeGameState ?: GameState(
+                    players = listOf(
+                        Player(0, "Player 1", PlayerColor.RED),
+                        Player(1, "Player 2", PlayerColor.YELLOW)
+                    ),
+                    statusMessage = "Player 1's turn to roll"
+                )
+            }
 
             GameScreen(
                 gameState = state,
                 soundManager = soundManager,
                 gamePreferences = gamePreferences,
+                isP2PMultiplayer = isP2PMatchActive,
+                p2pLocalPlayerIndex = p2pLocalPlayerIndex,
+                p2pTransportName = if (p2pTransportType == P2PTransportType.WIFI_DIRECT_LAN) "Wi-Fi Direct" else "Bluetooth",
+                onP2PRollDice = { p2pManager.rollDice() },
+                onP2PSelectPawn = { tokenId -> p2pManager.selectPawn(tokenId) },
+                onP2PSendEmote = { emote -> p2pManager.sendQuickEmote(emote) },
+                p2pLatestEmote = latestP2PEmote,
                 onStateUpdated = { newState ->
-                    activeGameState = newState
-                    gamePreferences.saveGame(newState)
-                    hasSavedMatch = !newState.isGameOver
+                    if (!isP2PMatchActive) {
+                        activeGameState = newState
+                        gamePreferences.saveGame(newState)
+                        hasSavedMatch = !newState.isGameOver
+                    }
                 },
                 onGameFinished = { finalState ->
+                    if (isP2PMatchActive) {
+                        p2pManager.leaveGame()
+                        isP2PMatchActive = false
+                    }
                     activeGameState = finalState
                     val winner = finalState.players.firstOrNull { it.rank == 1 }
                     val isHumanWinner = winner != null && !winner.isBot
@@ -383,6 +451,10 @@ fun LudoAppContent(
                 },
                 onExitToMenu = {
                     soundManager.playButtonTap()
+                    if (isP2PMatchActive) {
+                        p2pManager.leaveGame()
+                        isP2PMatchActive = false
+                    }
                     if (activity != null && com.example.ludo.ads.RemoteConfigManager.isInterstitialExitEnabled()) {
                         LudoAds.showInterstitial(activity) {
                             currentScreen = Screen.HOME
@@ -393,26 +465,32 @@ fun LudoAppContent(
                 },
                 onRestartGame = {
                     soundManager.playButtonTap()
-                    val resetPlayers = state.players.map { p ->
-                        Player(
-                            id = p.id,
-                            name = p.name,
-                            color = p.color,
-                            isBot = p.isBot,
-                            botDifficulty = p.botDifficulty,
-                            customSkinId = p.customSkinId
+                    if (isP2PMatchActive) {
+                        p2pManager.leaveGame()
+                        isP2PMatchActive = false
+                        currentScreen = Screen.NEARBY_MULTIPLAYER
+                    } else {
+                        val resetPlayers = state.players.map { p ->
+                            Player(
+                                id = p.id,
+                                name = p.name,
+                                color = p.color,
+                                isBot = p.isBot,
+                                botDifficulty = p.botDifficulty,
+                                customSkinId = p.customSkinId
+                            )
+                        }
+                        val resetState = GameState(
+                            players = resetPlayers,
+                            currentPlayerIndex = 0,
+                            diceValue = 1,
+                            isWaitingForRoll = true,
+                            statusMessage = "${resetPlayers[0].name}'s turn to roll"
                         )
+                        activeGameState = resetState
+                        gamePreferences.saveGame(resetState)
+                        hasSavedMatch = true
                     }
-                    val resetState = GameState(
-                        players = resetPlayers,
-                        currentPlayerIndex = 0,
-                        diceValue = 1,
-                        isWaitingForRoll = true,
-                        statusMessage = "${resetPlayers[0].name}'s turn to roll"
-                    )
-                    activeGameState = resetState
-                    gamePreferences.saveGame(resetState)
-                    hasSavedMatch = true
                 },
                 onWatchRewardAd = {
                     activity?.let { act ->

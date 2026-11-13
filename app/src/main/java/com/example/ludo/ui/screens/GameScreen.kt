@@ -21,16 +21,22 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.example.ui.theme.AccentPrimary
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.ElectricBolt
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Stars
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.Bluetooth
+import com.example.ludo.p2p.P2PEmoteMessage
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.MusicOff
@@ -118,7 +124,14 @@ fun GameScreen(
     onGameFinished: (GameState) -> Unit,
     onExitToMenu: () -> Unit,
     onRestartGame: () -> Unit,
-    onWatchRewardAd: (() -> Unit)? = null
+    onWatchRewardAd: (() -> Unit)? = null,
+    isP2PMultiplayer: Boolean = false,
+    p2pLocalPlayerIndex: Int = 0,
+    p2pTransportName: String = "Wi-Fi Direct",
+    onP2PRollDice: (() -> Unit)? = null,
+    onP2PSelectPawn: ((Int) -> Unit)? = null,
+    onP2PSendEmote: ((String) -> Unit)? = null,
+    p2pLatestEmote: P2PEmoteMessage? = null
 ) {
     var showPauseDialog by remember { mutableStateOf(false) }
     var isSoundMuted by remember { mutableStateOf(!soundManager.isSoundEnabled) }
@@ -284,9 +297,57 @@ fun GameScreen(
         }
     }
 
-    // Auto-advance turn if no moves available
-    LaunchedEffect(gameState.isWaitingForRoll, gameState.movableTokenIds, gameState.isDiceRolling, isHopAnimating, activeCaptureAnim, activeFinishAnim) {
-        if (!gameState.isWaitingForRoll && !gameState.isDiceRolling && gameState.movableTokenIds.isEmpty() &&
+    var showEmotePicker by remember { mutableStateOf(false) }
+
+    // Emote incoming listener
+    LaunchedEffect(p2pLatestEmote) {
+        p2pLatestEmote?.let { emote ->
+            activeToast = GameToastNotification(
+                title = emote.senderName,
+                subtitle = emote.message,
+                accentColor = emote.senderColor.accentColor
+            )
+        }
+    }
+
+    val handleDiceRollClick: (Player) -> Unit = { player ->
+        if (player.id == currentPlayer.id) {
+            if (isP2PMultiplayer) {
+                if (player.id == p2pLocalPlayerIndex) {
+                    onP2PRollDice?.invoke()
+                } else {
+                    activeToast = GameToastNotification(
+                        title = "Opponent's Turn",
+                        subtitle = "Waiting for ${currentPlayer.name} to roll...",
+                        accentColor = currentPlayer.color.accentColor
+                    )
+                }
+            } else {
+                handleRoll(
+                    currentState = gameState,
+                    soundManager = soundManager,
+                    coroutineScope = coroutineScope,
+                    onStateUpdated = onStateUpdated,
+                    onRollStarted = { rolled -> playerLastDiceValue[player.id] = rolled },
+                    onShowToast = { t -> activeToast = t }
+                )
+            }
+        }
+    }
+
+    val handleTokenClick: (Int) -> Unit = { tokenId ->
+        if (isP2PMultiplayer) {
+            if (currentPlayer.id == p2pLocalPlayerIndex && gameState.movableTokenIds.contains(tokenId)) {
+                onP2PSelectPawn?.invoke(tokenId)
+            }
+        } else {
+            onSelectPawn(tokenId)
+        }
+    }
+
+    // Auto-advance turn if no moves available (local pass & play mode only)
+    LaunchedEffect(gameState.isWaitingForRoll, gameState.movableTokenIds, gameState.isDiceRolling, isHopAnimating, activeCaptureAnim, activeFinishAnim, isP2PMultiplayer) {
+        if (!isP2PMultiplayer && !gameState.isWaitingForRoll && !gameState.isDiceRolling && gameState.movableTokenIds.isEmpty() &&
             !isHopAnimating && activeCaptureAnim == null && activeFinishAnim == null
         ) {
             delay(1000)
@@ -302,12 +363,12 @@ fun GameScreen(
         }
     }
 
-    // Auto-move single eligible pawn after 400ms
+    // Auto-move single eligible pawn after 400ms (local mode only)
     LaunchedEffect(
         gameState.isWaitingForRoll, gameState.movableTokenIds, gameState.isDiceRolling,
-        isHopAnimating, currentPlayer.isBot, isAutoMoveEnabled, activeCaptureAnim, activeFinishAnim
+        isHopAnimating, currentPlayer.isBot, isAutoMoveEnabled, activeCaptureAnim, activeFinishAnim, isP2PMultiplayer
     ) {
-        if (isAutoMoveEnabled && !currentPlayer.isBot && !gameState.isWaitingForRoll && !gameState.isDiceRolling &&
+        if (!isP2PMultiplayer && isAutoMoveEnabled && !currentPlayer.isBot && !gameState.isWaitingForRoll && !gameState.isDiceRolling &&
             gameState.movableTokenIds.size == 1 && !isHopAnimating && activeCaptureAnim == null && activeFinishAnim == null
         ) {
             val singleTokenId = gameState.movableTokenIds.first()
@@ -316,12 +377,12 @@ fun GameScreen(
         }
     }
 
-    // Coordinate automated Bot turns
+    // Coordinate automated Bot turns (local mode only; in P2P Host coordinates bots)
     LaunchedEffect(
         currentPlayer.isBot, gameState.isWaitingForRoll, gameState.isDiceRolling,
-        isHopAnimating, gameState.isGameOver, activeCaptureAnim, activeFinishAnim
+        isHopAnimating, gameState.isGameOver, activeCaptureAnim, activeFinishAnim, isP2PMultiplayer
     ) {
-        if (currentPlayer.isBot && !gameState.isGameOver && !isHopAnimating &&
+        if (!isP2PMultiplayer && currentPlayer.isBot && !gameState.isGameOver && !isHopAnimating &&
             activeCaptureAnim == null && activeFinishAnim == null
         ) {
             if (gameState.isWaitingForRoll && !gameState.isDiceRolling) {
@@ -410,7 +471,10 @@ fun GameScreen(
                                 isSoundMuted = !isSoundMuted
                                 soundManager.isSoundEnabled = !isSoundMuted
                                 soundManager.playButtonTap()
-                            }
+                            },
+                            isP2PMultiplayer = isP2PMultiplayer,
+                            p2pTransportName = p2pTransportName,
+                            p2pMyColor = gameState.players.getOrNull(p2pLocalPlayerIndex)?.color
                         )
 
                         ScoreStrip(players = gameState.players, currentPlayer = currentPlayer)
@@ -424,18 +488,7 @@ fun GameScreen(
                             isHopAnimating = isHopAnimating || activeCaptureAnim != null || activeFinishAnim != null,
                             isTop = true,
                             onBounce = {},
-                            onRollClick = { player ->
-                                if (player.id == currentPlayer.id) {
-                                    handleRoll(
-                                        currentState = gameState,
-                                        soundManager = soundManager,
-                                        coroutineScope = coroutineScope,
-                                        onStateUpdated = onStateUpdated,
-                                        onRollStarted = { rolled -> playerLastDiceValue[player.id] = rolled },
-                                        onShowToast = { t -> activeToast = t }
-                                    )
-                                }
-                            }
+                            onRollClick = handleDiceRollClick
                         )
                     }
 
@@ -451,7 +504,7 @@ fun GameScreen(
                             currentPlayer = currentPlayer,
                             movableTokenIds = if (isHopAnimating || currentPlayer.isBot || activeCaptureAnim != null || activeFinishAnim != null) emptySet() else gameState.movableTokenIds,
                             diceValue = gameState.diceValue,
-                            onTokenClick = onSelectPawn,
+                            onTokenClick = handleTokenClick,
                             animatingTokenId = animatingTokenId,
                             animatingTokenCoord = animatingTokenCoord,
                             animatingHopElevationPx = animatingHopElevationPx,
@@ -472,6 +525,67 @@ fun GameScreen(
                                 .align(Alignment.TopCenter)
                                 .padding(top = 12.dp)
                         )
+
+                        // P2P Quick Emote Bar in Board Corner
+                        if (isP2PMultiplayer) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(end = 12.dp, bottom = 12.dp)
+                            ) {
+                                Column(horizontalAlignment = Alignment.End) {
+                                    AnimatedVisibility(visible = showEmotePicker) {
+                                        Row(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(16.dp))
+                                                .background(SurfaceCard)
+                                                .border(1.dp, BorderHairline, RoundedCornerShape(16.dp))
+                                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            listOf("🎲", "🔥", "😂", "👏", "👑", "GG!", "Your turn!").forEach { emote ->
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(SurfaceElevated)
+                                                        .clickable {
+                                                            onP2PSendEmote?.invoke(emote)
+                                                            showEmotePicker = false
+                                                        }
+                                                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                                                ) {
+                                                    Text(text = emote, fontSize = 13.sp)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(20.dp))
+                                            .background(SurfaceCard)
+                                            .border(1.2.dp, AccentPrimary, RoundedCornerShape(20.dp))
+                                            .clickable { showEmotePicker = !showEmotePicker }
+                                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.ChatBubbleOutline,
+                                                contentDescription = "Emotes",
+                                                tint = AccentPrimary,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "Emotes",
+                                                style = Typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = TextPrimary
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     // Right Column: Right Players, Hint Line, Banner Ad
@@ -497,18 +611,7 @@ fun GameScreen(
                             isHopAnimating = isHopAnimating || activeCaptureAnim != null || activeFinishAnim != null,
                             isTop = false,
                             onBounce = {},
-                            onRollClick = { player ->
-                                if (player.id == currentPlayer.id) {
-                                    handleRoll(
-                                        currentState = gameState,
-                                        soundManager = soundManager,
-                                        coroutineScope = coroutineScope,
-                                        onStateUpdated = onStateUpdated,
-                                        onRollStarted = { rolled -> playerLastDiceValue[player.id] = rolled },
-                                        onShowToast = { t -> activeToast = t }
-                                    )
-                                }
-                            }
+                            onRollClick = handleDiceRollClick
                         )
 
                         BannerAdView(
@@ -542,7 +645,10 @@ fun GameScreen(
                                 isSoundMuted = !isSoundMuted
                                 soundManager.isSoundEnabled = !isSoundMuted
                                 soundManager.playButtonTap()
-                            }
+                            },
+                            isP2PMultiplayer = isP2PMultiplayer,
+                            p2pTransportName = p2pTransportName,
+                            p2pMyColor = gameState.players.getOrNull(p2pLocalPlayerIndex)?.color
                         )
 
                         // 2. Score Strip & Hint Line
@@ -572,18 +678,7 @@ fun GameScreen(
                         isHopAnimating = isHopAnimating || activeCaptureAnim != null || activeFinishAnim != null,
                         isTop = true,
                         onBounce = {},
-                        onRollClick = { player ->
-                            if (player.id == currentPlayer.id) {
-                                handleRoll(
-                                    currentState = gameState,
-                                    soundManager = soundManager,
-                                    coroutineScope = coroutineScope,
-                                    onStateUpdated = onStateUpdated,
-                                    onRollStarted = { rolled -> playerLastDiceValue[player.id] = rolled },
-                                    onShowToast = { t -> activeToast = t }
-                                )
-                            }
-                        }
+                        onRollClick = handleDiceRollClick
                     )
 
                     // 4. Centered Board
@@ -598,7 +693,7 @@ fun GameScreen(
                             currentPlayer = currentPlayer,
                             movableTokenIds = if (isHopAnimating || currentPlayer.isBot || activeCaptureAnim != null || activeFinishAnim != null) emptySet() else gameState.movableTokenIds,
                             diceValue = gameState.diceValue,
-                            onTokenClick = onSelectPawn,
+                            onTokenClick = handleTokenClick,
                             animatingTokenId = animatingTokenId,
                             animatingTokenCoord = animatingTokenCoord,
                             animatingHopElevationPx = animatingHopElevationPx,
@@ -619,6 +714,67 @@ fun GameScreen(
                                 .align(Alignment.TopCenter)
                                 .padding(top = 10.dp)
                         )
+
+                        // P2P Quick Emote Bar in Board Corner
+                        if (isP2PMultiplayer) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(end = 8.dp, bottom = 8.dp)
+                            ) {
+                                Column(horizontalAlignment = Alignment.End) {
+                                    AnimatedVisibility(visible = showEmotePicker) {
+                                        Row(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(16.dp))
+                                                .background(SurfaceCard)
+                                                .border(1.dp, BorderHairline, RoundedCornerShape(16.dp))
+                                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            listOf("🎲", "🔥", "😂", "👏", "👑", "GG!", "Your turn!").forEach { emote ->
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(SurfaceElevated)
+                                                        .clickable {
+                                                            onP2PSendEmote?.invoke(emote)
+                                                            showEmotePicker = false
+                                                        }
+                                                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                                                ) {
+                                                    Text(text = emote, fontSize = 13.sp)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(20.dp))
+                                            .background(SurfaceCard)
+                                            .border(1.2.dp, AccentPrimary, RoundedCornerShape(20.dp))
+                                            .clickable { showEmotePicker = !showEmotePicker }
+                                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.ChatBubbleOutline,
+                                                contentDescription = "Emotes",
+                                                tint = AccentPrimary,
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "Emotes",
+                                                style = Typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                                                color = TextPrimary
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     // 5. Bottom Player Panels
@@ -631,18 +787,7 @@ fun GameScreen(
                         isHopAnimating = isHopAnimating || activeCaptureAnim != null || activeFinishAnim != null,
                         isTop = false,
                         onBounce = {},
-                        onRollClick = { player ->
-                            if (player.id == currentPlayer.id) {
-                                handleRoll(
-                                    currentState = gameState,
-                                    soundManager = soundManager,
-                                    coroutineScope = coroutineScope,
-                                    onStateUpdated = onStateUpdated,
-                                    onRollStarted = { rolled -> playerLastDiceValue[player.id] = rolled },
-                                    onShowToast = { t -> activeToast = t }
-                                )
-                            }
-                        }
+                        onRollClick = handleDiceRollClick
                     )
 
                     // 6. Bottom Banner Ad
@@ -805,7 +950,10 @@ private fun GameTopHeader(
     isSoundMuted: Boolean,
     onPauseClick: () -> Unit,
     onSoundToggleClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isP2PMultiplayer: Boolean = false,
+    p2pTransportName: String = "",
+    p2pMyColor: com.example.ludo.model.PlayerColor? = null
 ) {
     Row(
         modifier = modifier
@@ -869,6 +1017,31 @@ private fun GameTopHeader(
                     tint = StarGold,
                     modifier = Modifier.size(12.dp)
                 )
+            }
+        }
+
+        if (isP2PMultiplayer) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(SurfaceCard)
+                    .border(1.dp, BorderHairline, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (p2pTransportName.contains("Bluetooth", ignoreCase = true)) Icons.Default.Bluetooth else Icons.Default.Wifi,
+                        contentDescription = null,
+                        tint = AccentPrimary,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (p2pMyColor != null) "P2P • ${p2pMyColor.displayName}" else "P2P",
+                        style = Typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                        color = AccentPrimary
+                    )
+                }
             }
         }
 

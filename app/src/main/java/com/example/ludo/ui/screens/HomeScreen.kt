@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Person
@@ -113,6 +114,7 @@ fun HomeScreen(
     onRulesClick: () -> Unit,
     onStatsClick: () -> Unit = onRulesClick,
     onSettingsClick: () -> Unit,
+    onNearbyMultiplayerClick: () -> Unit = {},
     onWatchRewardAd: (() -> Unit)? = null,
     onRecoverStreakAd: (() -> Unit)? = null
 ) {
@@ -373,6 +375,16 @@ fun HomeScreen(
                             isPrimary = true,
                             onClick = onPassAndPlayClick,
                             testTag = "play_now_button"
+                        )
+
+                        GameModeCard(
+                            title = "Nearby Multiplayer",
+                            subtitle = "Local Bluetooth & Wi-Fi Direct (2-4 nearby phones)",
+                            badgeText = "PEER-TO-PEER • NO SERVER",
+                            icon = Icons.Default.WifiTethering,
+                            isPrimary = true,
+                            onClick = onNearbyMultiplayerClick,
+                            testTag = "btn_nearby_multiplayer"
                         )
 
                         GameModeCard(
